@@ -98,7 +98,7 @@ CarrotCam checks for updates on startup. When a new version is available, a gree
 
 ## License
 
-Source code is private. Binaries are distributed via GitHub Releases.
+This project is licensed under the **GNU General Public License v2.0** — see the [LICENSE](LICENSE) file for details.
 
 ---
 
