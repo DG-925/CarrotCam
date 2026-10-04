@@ -43,12 +43,15 @@ export function initUpdater(onChange: (s: UpdateState) => void, autoDownload: bo
   autoUpdater.on('update-downloaded', (info) => set({ state: 'ready', version: info.version }))
   autoUpdater.on('error', (err) => {
     const message = err?.message ?? String(err)
-    // no release published yet (or offline): nothing to update to
-    if (/No published versions|net::ERR_INTERNET_DISCONNECTED|ENOTFOUND/i.test(message)) {
+    // no release published yet, a release whose files are still uploading
+    // (latest.yml 404), or offline: nothing to update to right now
+    if (/No published versions|Cannot find latest\.yml|HttpError: 404|net::ERR_|ENOTFOUND|ETIMEDOUT|ECONNRESET/i.test(message)) {
+      log.info('[updater] no update available right now:', message.split('\n')[0])
       set({ state: 'none', version: app.getVersion() })
       return
     }
-    set({ state: 'error', message })
+    // keep the first line only: the full message includes headers and a stack trace
+    set({ state: 'error', message: message.split('\n')[0].slice(0, 200) })
   })
 }
 

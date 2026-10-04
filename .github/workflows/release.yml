@@ -29,8 +29,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            # tag the commit being built (matters for manual runs on a branch)
-            gh release create "$TAG" --target "$GITHUB_SHA" --title "CarrotCam ${TAG#v}" --generate-notes
+            # tag the commit being built (matters for manual runs on a branch).
+            # Created as a draft: installed apps only see it once every file is
+            # uploaded (see the publish job), never a release without latest.yml.
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "CarrotCam ${TAG#v}" --generate-notes
           fi
 
   windows:
@@ -117,3 +119,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$TAG" "CarrotCam-${TAG#v}.apk" --clobber
+
+  publish:
+    # make the release visible only after the installer, latest.yml and the APK are uploaded
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$TAG" --draft=false --latest
