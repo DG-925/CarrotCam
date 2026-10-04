@@ -111,10 +111,12 @@ export class HandControl {
     // hold a gesture to run a command
     const match = hands
       .map((h) => ({ h, c: HAND_COMMANDS.find((c) => c.gesture === h.gesture) }))
-      .find((x) => x.c && x.h.score > 0.7)
+      .find((x) => x.c && x.h.score > 0.6)
     if (!match?.c) {
       this.hold = { gesture: '', since: 0 }
-      this.hint(null)
+      // tell people their hand is seen, so a gesture that is not recognised
+      // is distinguishable from a hand that is not tracked at all
+      this.hint(hands.length ? 'Hand detected' : null)
       return
     }
     const c = match.c

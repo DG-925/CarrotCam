@@ -106,6 +106,11 @@ function getGestures(): Promise<GestureRecognizer | null> {
           baseOptions: { modelAssetPath: `${base}models/gesture_recognizer.task`, delegate: d },
           runningMode: 'VIDEO',
           numHands: 2,
+          // the defaults (0.5) often miss a hand raised at webcam distance in a
+          // wide frame; commands still need a confident gesture held for a moment
+          minHandDetectionConfidence: 0.3,
+          minHandPresenceConfidence: 0.4,
+          minTrackingConfidence: 0.4,
           canvas: d === 'GPU' ? new OffscreenCanvas(1, 1) : undefined
         }),
       'gestures'
