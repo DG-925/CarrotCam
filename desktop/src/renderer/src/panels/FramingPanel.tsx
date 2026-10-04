@@ -1,11 +1,15 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { ScanFace } from 'lucide-react'
+import { Hand, ScanFace } from 'lucide-react'
 import type { FrameTightness } from '@shared/effects'
 import { Section, Segmented, Slider, ToggleRow } from '@/components/ui'
+import { toggleHandControl } from '@/lib/controller'
+import { HAND_COMMANDS } from '@/lib/hands'
+import { useStore } from '@/lib/store'
 import { FaceNote, PanelTitle, useFx } from './common'
 
 export function FramingPanel(): React.JSX.Element {
   const [fx, update] = useFx()
+  const handControl = useStore((s) => s.app.handControl)
   const f = fx.framing
   const set = <K extends keyof typeof f>(k: K) => (v: (typeof f)[K]) =>
     update((e) => {
@@ -22,6 +26,48 @@ export function FramingPanel(): React.JSX.Element {
           })
         }
       />
+      <Section title="Hand control">
+        <div className="card">
+          <ToggleRow
+            title="Control with your hands"
+            hint="Zoom, move and run commands with hand gestures"
+            icon={<Hand size={18} color="var(--accent)" />}
+            value={handControl}
+            onChange={() => void toggleHandControl()}
+          />
+          <AnimatePresence initial={false}>
+            {handControl && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
+                <div className="gesture-list">
+                  <div>
+                    <span className="g-emoji">🤏🤏</span>
+                    <span>
+                      <b>Zoom</b> — pinch with both hands, pull apart or push together
+                    </span>
+                  </div>
+                  <div>
+                    <span className="g-emoji">🤏</span>
+                    <span>
+                      <b>Move</b> — pinch with one hand and drag (while zoomed)
+                    </span>
+                  </div>
+                  {HAND_COMMANDS.map((c) => (
+                    <div key={c.gesture}>
+                      <span className="g-emoji">{c.emoji}</span>
+                      <span>
+                        <b>{c.label}</b> — hold
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="hint" style={{ margin: '8px 0 2px' }}>
+                  Keep your hand in view and hold each gesture for about a second.
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </Section>
       <Section title="Center stage">
         <div className="card">
           <ToggleRow

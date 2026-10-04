@@ -26,6 +26,8 @@ export interface AppSettings {
     codec: 'h264' | 'vp8' | 'vp9'
   }
   recordAudio: boolean
+  /** control the camera with hand gestures (pinch to zoom, hold a gesture for commands) */
+  handControl: boolean
   lastSource: string | null
   welcomed: boolean
 }
@@ -41,6 +43,7 @@ export const defaultAppSettings: AppSettings = {
   vcamEnabled: true,
   stream: { resolution: '720p', fps: 30, bitrate: 8000, lowLatency: true, codec: 'h264' },
   recordAudio: true,
+  handControl: false,
   lastSource: null,
   welcomed: false
 }

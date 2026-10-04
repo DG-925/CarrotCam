@@ -106,6 +106,7 @@ let mlBusy = false
 let mlSentAt = 0
 let mlConfigKey = ''
 let lastGestureAt = 0
+let handControl = false
 
 let autoGain: [number, number, number] = [1, 1, 1]
 let autoTarget: [number, number, number] = [1, 1, 1]
@@ -278,7 +279,7 @@ function mlConfig(): MlConfig {
     r.faceLight > 0 ||
     r.slim > 0 ||
     r.eyeEnlarge > 0
-  return { segmentation: needsMask, face: needsFace, gestures: e.overlay.gestures }
+  return { segmentation: needsMask, face: needsFace, gestures: e.overlay.gestures, hands: handControl }
 }
 
 function syncMlConfig(): void {
@@ -297,8 +298,8 @@ function syncMlConfig(): void {
 function feedMl(frame: VideoFrame, now: number): void {
   if (!mlPort || mlBusy) return
   const cfg = mlConfig()
-  if (!cfg.segmentation && !cfg.face && !cfg.gestures) return
-  const minGap = cfg.segmentation || cfg.face ? 0 : 90
+  if (!cfg.segmentation && !cfg.face && !cfg.gestures && !cfg.hands) return
+  const minGap = cfg.segmentation || cfg.face ? 0 : cfg.hands ? 60 : 90
   if (now - mlSentAt < minGap) return
   mlBusy = true
   mlSentAt = now
@@ -349,10 +350,15 @@ function onMl(msg: FromMl): void {
     if (!msg.ready) mlBusy = false
     return
   }
+  if (msg.t === 'hands') {
+    if (handControl) post({ t: 'hands', hands: msg.hands, aspect: msg.aspect })
+    return
+  }
   if (msg.t === 'gesture') {
     const now = performance.now()
     const reaction = GESTURE_REACTIONS[msg.name]
-    if (effects.overlay.gestures && reaction && now - lastGestureAt > 2500) {
+    // with hand control on, gestures are commands (handled on the main thread)
+    if (effects.overlay.gestures && !handControl && reaction && now - lastGestureAt > 2500) {
       lastGestureAt = now
       overlay.react(reaction)
       post({ t: 'gesture', name: msg.name })
@@ -1019,6 +1025,10 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
       thumbIds = msg.ids.length ? msg.ids : null
       thumbOffset = 0
       lastThumbsAt = 0
+      break
+    case 'handControl':
+      handControl = msg.enabled
+      if (gl) syncMlConfig()
       break
     case 'standbyText':
       if (standby) standby.text = msg.text

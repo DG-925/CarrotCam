@@ -32,6 +32,7 @@
 - **Retouch:** smooth skin, face light, brighten eyes, whiten teeth, slim face, enlarge eyes
 - **Lighting:** face-tracking **spotlight**, studio subject light, directional key light, **night boost** with temporal denoise
 - **Framing:** **auto framing / center stage**, zoom, pan (drag & scroll on the preview), rotate, straighten, mirror, flip
+- **Hand control:** pinch with both hands and pull apart to **zoom**, pinch with one hand and drag to **move**, and hold a gesture for commands — ✋ reset, ✌️ snapshot, 👍/👎 next/previous filter, ☝️ Follow Me, ✊ background blur, 🤟 hearts
 - **Effects:** glitch, VHS, pixel, comic, sketch, halftone, thermal, night vision, poster, chromatic, twin
 - **Overlays:** animated name tag (lower third), clock, LIVE / ON AIR badge, rounded border, **reactions** (hearts, confetti, fireworks…) and **gesture reactions** (👍 ✌️ 🤟 ☝️ ✋)
 - **Privacy:** blur everything, “Be right back” card, freeze frame — with global hotkeys

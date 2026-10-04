@@ -6,6 +6,7 @@ import {
   Columns2,
   EyeOff,
   FlipHorizontal2,
+  Hand,
   Maximize2,
   RotateCw,
   PartyPopper,
@@ -13,7 +14,7 @@ import {
   ChevronsLeftRight
 } from 'lucide-react'
 import type { PrivacyMode, Reaction } from '@shared/effects'
-import { engine, setPrivacy, takeSnapshot, toggleRecording } from '@/lib/controller'
+import { engine, setPrivacy, takeSnapshot, toggleHandControl, toggleRecording } from '@/lib/controller'
 import { useStore } from '@/lib/store'
 
 const REACTIONS: { kind: Reaction; emoji: string; label: string }[] = [
@@ -52,6 +53,8 @@ export function Preview(): React.JSX.Element {
   const source = useStore((s) => s.source)
   const recording = useStore((s) => s.recording)
   const compare = useStore((s) => s.compare)
+  const handControl = useStore((s) => s.app.handControl)
+  const handHint = useStore((s) => s.handHint)
   const set = useStore((s) => s.set)
   const [split, setSplit] = useState(0.5)
   const [popover, setPopover] = useState<'react' | 'privacy' | null>(null)
@@ -148,8 +151,31 @@ export function Preview(): React.JSX.Element {
                       <span className="dot rec" /> REC {elapsed}
                     </motion.span>
                   )}
-                  {effects.privacy !== 'off' && (
-                    <motion.span className="chip" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} style={{ background: 'rgba(255,122,26,0.85)' }}>
+                  {handControl && (
+                  <motion.span
+                    key="hands"
+                    className="chip"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={handHint ? { background: 'rgba(255,122,26,0.85)' } : undefined}
+                  >
+                    {handHint ?? (
+                      <>
+                        <Hand size={13} /> Hand control
+                      </>
+                    )}
+                  </motion.span>
+                )}
+                {effects.privacy !== 'off' && (
+                    <motion.span
+                    key="privacy"
+                    className="chip"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{ background: 'rgba(255,122,26,0.85)' }}
+                  >
                       <EyeOff size={13} /> {effects.privacy === 'brb' ? 'Be right back' : effects.privacy === 'freeze' ? 'Frozen' : 'Privacy blur'}
                     </motion.span>
                   )}
@@ -244,6 +270,10 @@ export function Preview(): React.JSX.Element {
           <button className={`tool ${popover === 'react' ? 'on' : ''}`} onClick={() => setPopover(popover === 'react' ? null : 'react')}>
             <PartyPopper size={19} />
             <span className="tooltip">Reactions</span>
+          </button>
+          <button className={`tool ${handControl ? 'on' : ''}`} onClick={() => void toggleHandControl()}>
+            <Hand size={19} />
+            <span className="tooltip">{handControl ? 'Hand control on' : 'Hand control'}</span>
           </button>
           <div className="tool-sep" />
           <button className="tool" onClick={() => void takeSnapshot()}>

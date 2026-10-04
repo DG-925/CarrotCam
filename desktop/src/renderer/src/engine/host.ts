@@ -1,6 +1,6 @@
 // Main-thread facade over the render + ML workers.
 import type { EffectSettings, Reaction } from '@shared/effects'
-import type { EngineStats, FromRender, ToRender } from './types'
+import type { EngineStats, FromRender, HandData, ToRender } from './types'
 import RenderWorker from './render.worker?worker'
 import MlWorker from './ml.worker?worker'
 
@@ -16,6 +16,7 @@ export interface EngineEvents {
   ready?: (gpu: string) => void
   error?: (message: string) => void
   gesture?: (name: string) => void
+  hands?: (hands: HandData[], aspect: number) => void
   ml?: (s: { ready: boolean; delegate: string; error?: string }) => void
   thumbs?: (t: { bitmap: ImageBitmap; ids: string[]; cellW: number; cellH: number; cols: number }) => void
 }
@@ -79,6 +80,9 @@ export class Engine {
       case 'gesture':
         this.events.gesture?.(msg.name)
         break
+      case 'hands':
+        this.events.hands?.(msg.hands, msg.aspect)
+        break
       case 'ml':
         this.events.ml?.(msg)
         break
@@ -101,6 +105,11 @@ export class Engine {
     }
     const processor = new TrackProcessor({ track, maxBufferSize: 2 })
     this.post({ t: 'source', stream: processor.readable, id }, [processor.readable as unknown as Transferable])
+  }
+
+  /** Hand control: zoom / move / commands with hand gestures. */
+  setHandControl(enabled: boolean): void {
+    this.post({ t: 'handControl', enabled })
   }
 
   setEffects(effects: EffectSettings): void {

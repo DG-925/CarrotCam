@@ -5,6 +5,7 @@ import type { PhoneToPc, RemoteState, StreamConfig } from '@shared/protocol'
 import { Engine } from '@/engine/host'
 import { LOOKS } from '@/engine/looks'
 import { PhoneLink } from '@/phone/link'
+import { HandControl, type HandCommand } from './hands'
 import { invoke, on } from './ipc'
 import { idb } from './idb'
 import { parseCube } from './cube'
@@ -20,6 +21,7 @@ let recordChunks: Blob[] = []
 let recordMic: MediaStream | null = null
 let selectToken = 0
 let remoteTimer: ReturnType<typeof setTimeout> | null = null
+let hands: HandControl | null = null
 
 const st = () => useStore.getState()
 
@@ -39,6 +41,95 @@ export async function updateApp(patch: Partial<AppSettings>): Promise<void> {
   useStore.setState({ app: next })
   if (patch.theme) applyTheme()
   if (patch.output) engine.setOutput(next.output.width, next.output.height, next.output.fps)
+  if (patch.handControl !== undefined) applyHandControl(next.handControl)
+}
+
+// ---- hand control -------------------------------------------------------------------
+function applyHandControl(enabled: boolean): void {
+  engine.setHandControl(enabled)
+  if (!enabled) {
+    hands?.reset()
+    useStore.setState({ handHint: null })
+  }
+}
+
+export async function toggleHandControl(): Promise<void> {
+  const on = !st().app.handControl
+  await updateApp({ handControl: on })
+  toast(
+    on
+      ? { kind: 'info', title: 'Hand control on', body: 'Pinch with both hands and pull apart to zoom. Hold ✋ to reset.' }
+      : { kind: 'info', title: 'Hand control off' }
+  )
+}
+
+function cycleFilter(step: number): void {
+  const i = LOOKS.findIndex((l) => l.id === st().effects.filter.id)
+  const next = LOOKS[(i + step + LOOKS.length) % LOOKS.length]
+  st().updateEffects((e) => {
+    e.filter.id = next.id
+  })
+  toast({ kind: 'info', title: `Filter: ${next.name}` })
+}
+
+function onHandCommand(c: HandCommand): void {
+  const { effects, updateEffects } = st()
+  switch (c) {
+    case 'reset':
+      updateEffects((e) => {
+        e.framing.zoom = 1
+        e.framing.panX = 0
+        e.framing.panY = 0
+      })
+      toast({ kind: 'info', title: '✋ View reset' })
+      break
+    case 'snapshot':
+      toast({ kind: 'info', title: '✌️ Smile! Snapshot in 2 seconds' })
+      setTimeout(() => void takeSnapshot(), 2000)
+      break
+    case 'nextFilter':
+      cycleFilter(1)
+      break
+    case 'prevFilter':
+      cycleFilter(-1)
+      break
+    case 'follow':
+      updateEffects((e) => {
+        e.framing.autoFrame = !e.framing.autoFrame
+      })
+      toast({ kind: 'info', title: effects.framing.autoFrame ? '☝️ Follow Me off' : '☝️ Follow Me on' })
+      break
+    case 'blur':
+      updateEffects((e) => {
+        e.background.mode = e.background.mode === 'blur' ? 'none' : 'blur'
+      })
+      toast({ kind: 'info', title: effects.background.mode === 'blur' ? '✊ Background blur off' : '✊ Background blur on' })
+      break
+    case 'hearts':
+      engine.react('hearts')
+      break
+  }
+}
+
+function createHandControl(): HandControl {
+  return new HandControl({
+    view: () => {
+      const f = st().effects.framing
+      return { zoom: f.zoom, panX: f.panX, panY: f.panY }
+    },
+    setView: (v) => {
+      const wasFollowing = st().effects.framing.autoFrame
+      st().updateEffects((e) => {
+        e.framing.zoom = v.zoom
+        e.framing.panX = v.panX
+        e.framing.panY = v.panY
+        e.framing.autoFrame = false // your hands are in charge now
+      })
+      if (wasFollowing) toast({ kind: 'info', title: 'Follow Me paused', body: 'Hand zoom took over. Hold ☝️ to turn it back on.' })
+    },
+    command: onHandCommand,
+    hint: (handHint) => useStore.setState({ handHint })
+  })
 }
 
 // ---- virtual camera -----------------------------------------------------------------
@@ -538,10 +629,15 @@ export async function initController(): Promise<void> {
       useStore.setState({ ml })
       if (ml.error) console.warn('[ml]', ml.error)
     },
-    gesture: (name) => toast({ kind: 'info', title: `Gesture: ${name.replace(/_/g, ' ')}` })
+    gesture: (name) => toast({ kind: 'info', title: `Gesture: ${name.replace(/_/g, ' ')}` }),
+    hands: (list, aspect) => {
+      if (st().app.handControl) hands?.update(list, aspect)
+    }
   }
+  hands = createHandControl()
   engine.setOutput(app.output.width, app.output.height, app.output.fps)
   engine.setEffects(st().effects)
+  engine.setHandControl(app.handControl)
   useStore.subscribe((s, p) => {
     if (s.effects !== p.effects) {
       engine.setEffects(s.effects)

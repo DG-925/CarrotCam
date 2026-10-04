@@ -10,12 +10,12 @@ import {
   ImageSegmenter,
   type NormalizedLandmark
 } from '@mediapipe/tasks-vision'
-import type { FaceData, FromMl, MlConfig, ToMl } from './types'
+import type { FaceData, FromMl, HandData, MlConfig, ToMl } from './types'
 
 const scope = self as unknown as DedicatedWorkerGlobalScope
 let port: MessagePort | null = null
 let base = ''
-let config: MlConfig = { segmentation: false, face: false, gestures: false }
+let config: MlConfig = { segmentation: false, face: false, gestures: false, hands: false }
 
 type Fileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>
 let fileset: Promise<Fileset> | null = null
@@ -27,6 +27,8 @@ let gestures: Promise<GestureRecognizer | null> | null = null
 let delegate: 'GPU' | 'CPU' = 'CPU'
 let frameNo = 0
 let gestureRun: { name: string; count: number } = { name: '', count: 0 }
+// pinch state per hand, with hysteresis so a pinch does not flicker on and off
+const pinched = new Map<string, boolean>()
 
 function send(msg: FromMl, transfer: Transferable[] = []): void {
   port?.postMessage(msg, transfer)
@@ -103,13 +105,32 @@ function getGestures(): Promise<GestureRecognizer | null> {
         GestureRecognizer.createFromOptions(fs, {
           baseOptions: { modelAssetPath: `${base}models/gesture_recognizer.task`, delegate: d },
           runningMode: 'VIDEO',
-          numHands: 1,
+          numHands: 2,
           canvas: d === 'GPU' ? new OffscreenCanvas(1, 1) : undefined
         }),
       'gestures'
     )
   )
   return gestures
+}
+
+/** Pinch = thumb tip (4) and index tip (8) touching, measured against the hand size. */
+function toHand(lm: NormalizedLandmark[], side: string, gesture: string, score: number, aspect: number): HandData {
+  const d = (a: number, b: number): number => Math.hypot((lm[a].x - lm[b].x) * aspect, lm[a].y - lm[b].y)
+  const size = Math.max(d(0, 9), 1e-4) // wrist -> middle finger knuckle
+  const ratio = d(4, 8) / size
+  const indexOut = d(0, 8) > size * 0.85 // a fist also brings the tips together
+  const was = pinched.get(side) ?? false
+  const pinch = gesture !== 'Closed_Fist' && indexOut && (was ? ratio < 0.45 : ratio < 0.3)
+  pinched.set(side, pinch)
+  return {
+    side,
+    gesture,
+    score,
+    pinch,
+    x: (lm[4].x + lm[8].x) / 2,
+    y: (lm[4].y + lm[8].y) / 2
+  }
 }
 
 function toFace(lm: NormalizedLandmark[], aspect: number): FaceData {
@@ -180,10 +201,24 @@ async function onFrame(bitmap: ImageBitmap, ts: number, aspect: number): Promise
       }
     }
     const busy = config.segmentation || config.face
-    if (config.gestures && (!busy || frameNo % 3 === 0)) {
+    // hand control needs a steady stream of hand positions; reactions do not
+    const every = config.hands ? (busy ? 2 : 1) : busy ? 3 : 1
+    if ((config.gestures || config.hands) && frameNo % every === 0) {
       const gr = await getGestures()
       if (gr) {
         const res = gr.recognizeForVideo(bitmap, ts)
+        if (config.hands) {
+          const seen = new Set<string>()
+          const hands: HandData[] = (res.landmarks ?? []).map((lm, i) => {
+            const g = res.gestures?.[i]?.[0]
+            let side = res.handedness?.[i]?.[0]?.categoryName ?? String(i)
+            if (seen.has(side)) side += i // two hands labelled the same: keep them apart
+            seen.add(side)
+            return toHand(lm, side, g?.categoryName ?? 'None', g?.score ?? 0, aspect)
+          })
+          for (const side of [...pinched.keys()]) if (!hands.some((h) => h.side === side)) pinched.delete(side)
+          send({ t: 'hands', hands, aspect })
+        }
         const g = res.gestures?.[0]?.[0]
         const name = g && g.score > 0.65 && g.categoryName !== 'None' ? g.categoryName : ''
         if (name && name === gestureRun.name) gestureRun.count++
@@ -208,7 +243,7 @@ function onPortMessage(e: MessageEvent<ToMl>): void {
     // warm up models as soon as they are needed so the first frame is fast
     if (config.segmentation) void getSegmenter()
     if (config.face) void getLandmarker()
-    if (config.gestures) void getGestures()
+    if (config.gestures || config.hands) void getGestures()
   } else if (msg.t === 'frame') {
     void onFrame(msg.bitmap, msg.ts, msg.aspect)
   }

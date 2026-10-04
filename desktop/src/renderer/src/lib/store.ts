@@ -103,6 +103,8 @@ interface StoreState {
   update: UpdateState
   recording: { active: boolean; startedAt: number }
   compare: boolean
+  /** what hand control is doing right now ("Zoom 1.8×", "Snapshot — hold…") */
+  handHint: string | null
   ml: { ready: boolean; delegate: string; error?: string } | null
   toasts: Toast[]
   gpu: string
@@ -143,6 +145,7 @@ export const useStore = create<StoreState>((set, get) => ({
   update: { state: 'idle' },
   recording: { active: false, startedAt: 0 },
   compare: false,
+  handHint: null,
   ml: null,
   toasts: [],
   gpu: '',
