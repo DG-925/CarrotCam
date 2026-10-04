@@ -1,0 +1,13 @@
+LIBRARY CarrotCamVCam
+EXPORTS
+            DllMain                 PRIVATE
+            DllGetClassObject       PRIVATE
+            DllCanUnloadNow         PRIVATE
+            DllRegisterServer       PRIVATE
+            DllUnregisterServer     PRIVATE
+            DllInstall              PRIVATE
+            scCreateCamera
+            scDeleteCamera
+            scSendFrame
+            scWaitForConnection
+            scIsConnected

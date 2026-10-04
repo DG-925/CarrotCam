@@ -1,0 +1,20 @@
+# desktop
+desktop/node_modules/
+desktop/out/
+desktop/dist/
+desktop/src/renderer/public/models/
+desktop/src/renderer/public/mediapipe/
+desktop/resources/vcam/
+
+# native driver build output
+native/vcam/build/
+
+# secrets
+*.jks
+*.keystore
+key.properties
+
+# misc
+.DS_Store
+Thumbs.db
+*.log

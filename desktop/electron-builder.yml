@@ -1,0 +1,39 @@
+appId: com.carrotcam.desktop
+productName: CarrotCam
+copyright: Copyright © 2026 DG-925
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+asarUnpack:
+  - node_modules/koffi/**
+extraResources:
+  - from: resources/vcam
+    to: vcam
+  - from: build/icon.ico
+    to: icon.ico
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: CarrotCam-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: CarrotCam
+  include: build/installer.nsh
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  owner: DG-925
+  repo: CarrotCam
+  releaseType: release
