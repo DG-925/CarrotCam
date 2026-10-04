@@ -402,6 +402,8 @@ export class StandbyScreen {
   readonly canvas: OffscreenCanvas
   private ctx: OffscreenCanvasRenderingContext2D
   text = 'Connect your phone or pick a camera'
+  /** the CarrotCam logo (public/logo.png), drawn once loaded */
+  logo: ImageBitmap | null = null
 
   constructor(
     public w: number,
@@ -436,28 +438,17 @@ export class StandbyScreen {
     ctx.fillRect(0, 0, w, h)
 
     const r = 74 * s
-    ctx.fillStyle = ORANGE
-    ctx.beginPath()
-    ctx.arc(cx, cy, r, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#181210'
-    ctx.beginPath()
-    ctx.arc(cx, cy, r * 0.62, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#ff8c32'
-    ctx.beginPath()
-    ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#ffecd2'
-    ctx.beginPath()
-    ctx.arc(cx - r * 0.14, cy - r * 0.14, r * 0.09, 0, Math.PI * 2)
-    ctx.fill()
-    // orbiting dot
-    const a = t * 2.2
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'
-    ctx.beginPath()
-    ctx.arc(cx + Math.cos(a) * r * 1.35, cy + Math.sin(a) * r * 1.35, 6 * s, 0, Math.PI * 2)
-    ctx.fill()
+    if (this.logo) {
+      // the real logo, gently breathing
+      const size = r * 2.3 * (1 + 0.025 * Math.sin(t * 1.6))
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(this.logo, cx - size / 2, cy - size / 2, size, size)
+    } else {
+      ctx.fillStyle = ORANGE
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
 
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'

@@ -1,16 +1,37 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { FileUp, X } from 'lucide-react'
+import { FileUp, Search, X } from 'lucide-react'
 import { LOOKS } from '@/engine/looks'
 import { engine, importLut } from '@/lib/controller'
 import { idb } from '@/lib/idb'
 import { Section, Slider, Switch, stagger } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
 
+const CATEGORIES: { id: string; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'warm', label: 'Warm' },
+  { id: 'cool', label: 'Cool' },
+  { id: 'film', label: 'Film' },
+  { id: 'bw', label: 'B&W' },
+  { id: 'creative', label: 'Creative' }
+]
+
 export function FiltersPanel(): React.JSX.Element {
   const [fx, update] = useFx()
   const canvases = useRef(new Map<string, HTMLCanvasElement>())
   const file = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState('all')
+
+  const looks = useMemo(() => {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    return LOOKS.filter((l) => {
+      const hay = `${l.name} ${l.id} ${(l.tags ?? []).join(' ')}`.toLowerCase()
+      if (category !== 'all' && !(l.tags ?? []).includes(category)) return false
+      return words.every((w) => hay.includes(w))
+    })
+  }, [query, category])
+  const lookIds = looks.map((l) => l.id).join(',')
 
   // live filter thumbnails rendered by the GPU engine
   useEffect(() => {
@@ -24,12 +45,16 @@ export function FiltersPanel(): React.JSX.Element {
       })
       bitmap.close()
     }
-    engine.requestThumbs(LOOKS.map((l) => l.id))
     return () => {
       engine.requestThumbs([])
       engine.events.thumbs = prev
     }
   }, [])
+
+  // only render thumbnails for the looks that are shown
+  useEffect(() => {
+    engine.requestThumbs(lookIds ? lookIds.split(',') : [])
+  }, [lookIds])
 
   return (
     <>
@@ -42,11 +67,34 @@ export function FiltersPanel(): React.JSX.Element {
           onChange={(v) => update((e) => void (e.filter.intensity = v))}
         />
       </Section>
+      <div className="search">
+        <Search size={15} />
+        <input
+          className="text-input"
+          placeholder={`Search ${LOOKS.length} filters…`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+        />
+        {query && (
+          <button className="icon-btn clear" title="Clear search" onClick={() => setQuery('')}>
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      <div className="filter-cats">
+        {CATEGORIES.map((c) => (
+          <button key={c.id} className={`filter-cat ${category === c.id ? 'active' : ''}`} onClick={() => setCategory(c.id)}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+      {looks.length === 0 && <p className="hint" style={{ textAlign: 'center', margin: '18px 0 26px' }}>No filters match “{query}”.</p>}
       <div className="grid-2" style={{ marginBottom: 22 }}>
-        {LOOKS.map((l, i) => (
+        {looks.map((l, i) => (
           <motion.button
             key={l.id}
-            {...stagger(i)}
+            {...stagger(Math.min(i, 12))}
             className={`filter-tile ${fx.filter.id === l.id ? 'active' : ''}`}
             onClick={() => update((e) => void (e.filter.id = l.id))}
           >

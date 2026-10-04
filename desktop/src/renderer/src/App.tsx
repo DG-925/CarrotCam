@@ -1,32 +1,115 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
+  ChevronDown,
   Clapperboard,
   Info,
-  Moon,
+  Plus,
   Settings,
   Smartphone,
-  Sun,
+  Usb,
+  Video,
   X,
   ArrowRight,
   Download
 } from 'lucide-react'
 import { IPC } from '@shared/app'
 import { invoke } from '@/lib/ipc'
-import { toggleVcam, updateApp } from '@/lib/controller'
+import { selectSource, updateApp } from '@/lib/controller'
 import { useStore, type Page } from '@/lib/store'
 import { Logo } from '@/components/ui'
 import { Preview } from '@/components/Preview'
 import { Sources } from '@/components/Sources'
 import { Panel } from '@/components/Panel'
-import { DevicesPage } from '@/pages/DevicesPage'
+import { DevicesPopup } from '@/pages/DevicesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+
+/** Camera dropdown in the title bar: pick a source or open the phones popup. */
+function SourcePicker(): React.JSX.Element {
+  const source = useStore((s) => s.source)
+  const devices = useStore((s) => s.devices)
+  const cameras = useStore((s) => s.cameras)
+  const set = useStore((s) => s.set)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: PointerEvent): void => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const esc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', esc)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [open])
+
+  const pick = (id: string): void => {
+    setOpen(false)
+    if (id !== source.id) void selectSource(id)
+  }
+
+  return (
+    <div className="dropdown" ref={ref}>
+      <button className="chip picker-chip" onClick={() => setOpen(!open)}>
+        {source.kind === 'phone' ? <Smartphone size={13} /> : <Video size={13} />}
+        {source.id ? source.label : 'Choose a camera'}
+        <ChevronDown size={13} style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="dropdown-menu"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.16 }}
+          >
+            {devices.length > 0 && <div className="dropdown-label">Phones</div>}
+            {devices.map((d) => (
+              <button key={d.id} className="dropdown-item" onClick={() => pick(`phone:${d.id}`)}>
+                <Smartphone size={15} />
+                <span className="grow">{d.info.name}</span>
+                {d.usb && <Usb size={13} color="var(--muted)" />}
+                {source.id === `phone:${d.id}` && <Check size={15} color="var(--accent)" />}
+              </button>
+            ))}
+            {cameras.length > 0 && <div className="dropdown-label">Webcams</div>}
+            {cameras.map((c) => (
+              <button key={c.id} className="dropdown-item" onClick={() => pick(`cam:${c.id}`)}>
+                <Video size={15} />
+                <span className="grow">{c.label}</span>
+                {source.id === `cam:${c.id}` && <Check size={15} color="var(--accent)" />}
+              </button>
+            ))}
+            {(devices.length > 0 || cameras.length > 0) && <div className="dropdown-sep" />}
+            <button
+              className="dropdown-item accent"
+              onClick={() => {
+                setOpen(false)
+                set({ devicesOpen: true })
+              }}
+            >
+              <Plus size={15} />
+              <span className="grow">Phones &amp; connect a phone…</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 function TitleBar(): React.JSX.Element {
   const vcam = useStore((s) => s.vcam)
-  const source = useStore((s) => s.source)
   return (
     <header className="titlebar">
       <div className="brand">
@@ -35,16 +118,15 @@ function TitleBar(): React.JSX.Element {
         <small>Studio</small>
       </div>
       <div className="center no-drag">
-        <button className="chip" style={{ background: 'var(--surface-2)', color: 'var(--text)', borderColor: 'var(--border)' }} onClick={() => void toggleVcam()}>
+        <span
+          className="chip"
+          title={vcam.error ?? 'Pick “CarrotCam” as your camera in any app'}
+          style={{ background: 'var(--surface-2)', color: 'var(--text)', borderColor: 'var(--border)' }}
+        >
           <span className={`dot ${vcam.running ? 'on' : ''}`} />
-          {vcam.running ? (vcam.inUse ? 'Camera live in an app' : 'Virtual camera on') : 'Virtual camera off'}
-        </button>
-        {source.id && (
-          <span className="chip" style={{ background: 'var(--surface-2)', color: 'var(--text-2)', borderColor: 'var(--border)' }}>
-            {source.kind === 'phone' ? <Smartphone size={13} /> : <Clapperboard size={13} />}
-            {source.label}
-          </span>
-        )}
+          {vcam.running ? 'Virtual camera on' : 'Virtual camera unavailable'}
+        </span>
+        <SourcePicker />
       </div>
     </header>
   )
@@ -53,12 +135,9 @@ function TitleBar(): React.JSX.Element {
 function Sidebar(): React.JSX.Element {
   const page = useStore((s) => s.page)
   const setPage = useStore((s) => s.setPage)
-  const dark = useStore((s) => s.dark)
-  const devices = useStore((s) => s.devices.length)
   const update = useStore((s) => s.update)
   const items: { id: Page; label: string; icon: typeof Settings; dot?: boolean }[] = [
     { id: 'studio', label: 'Studio', icon: Clapperboard },
-    { id: 'devices', label: 'Devices', icon: Smartphone, dot: devices > 0 },
     { id: 'settings', label: 'Settings', icon: Settings, dot: update.state === 'ready' }
   ]
   return (
@@ -71,25 +150,6 @@ function Sidebar(): React.JSX.Element {
           {it.dot && <span className="badge-dot" />}
         </button>
       ))}
-      <div className="spacer" />
-      <button
-        className="nav-btn"
-        title={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-        onClick={() => void updateApp({ theme: dark ? 'light' : 'dark' })}
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span
-            key={dark ? 'moon' : 'sun'}
-            initial={{ rotate: -90, opacity: 0, scale: 0.6 }}
-            animate={{ rotate: 0, opacity: 1, scale: 1 }}
-            exit={{ rotate: 90, opacity: 0, scale: 0.6 }}
-            transition={{ duration: 0.25 }}
-            style={{ display: 'grid' }}
-          >
-            {dark ? <Moon size={20} /> : <Sun size={20} />}
-          </motion.span>
-        </AnimatePresence>
-      </button>
     </nav>
   )
 }
@@ -180,7 +240,7 @@ const WELCOME = [
   {
     emoji: '📱',
     title: 'Connect your phone',
-    body: 'Install CarrotCam on your phone, join the same Wi-Fi and scan the QR code on the Devices page. Your webcams work too.'
+    body: 'Install CarrotCam on your phone, then connect over Wi-Fi (scan the QR code) or plug it in with a USB cable. Your webcams work too.'
   },
   {
     emoji: '🎥',
@@ -192,7 +252,7 @@ const WELCOME = [
 function Welcome(): React.JSX.Element | null {
   const welcomed = useStore((s) => s.app.welcomed)
   const ready = useStore((s) => s.ready)
-  const setPage = useStore((s) => s.setPage)
+  const set = useStore((s) => s.set)
   const [step, setStep] = useState(0)
   if (!ready || welcomed) return null
   const s = WELCOME[step]
@@ -235,7 +295,7 @@ function Welcome(): React.JSX.Element | null {
               onClick={() => {
                 if (last) {
                   void updateApp({ welcomed: true })
-                  setPage('devices')
+                  set({ devicesOpen: true })
                 } else setStep(step + 1)
               }}
             >
@@ -268,12 +328,13 @@ function Splash(): React.JSX.Element {
 export default function App(): React.JSX.Element {
   const page = useStore((s) => s.page)
   const ready = useStore((s) => s.ready)
+  const devicesOpen = useStore((s) => s.devicesOpen)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return
       if (e.ctrlKey && e.key === '1') useStore.getState().setPage('studio')
-      if (e.ctrlKey && e.key === '2') useStore.getState().setPage('devices')
+      if (e.ctrlKey && e.key === '2') useStore.getState().set({ devicesOpen: true })
       if (e.ctrlKey && e.key === '3') useStore.getState().setPage('settings')
     }
     window.addEventListener('keydown', onKey)
@@ -298,11 +359,12 @@ export default function App(): React.JSX.Element {
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               style={{ overflow: page === 'studio' ? 'hidden' : 'auto' }}
             >
-              {page === 'studio' ? <Studio /> : page === 'devices' ? <DevicesPage /> : <SettingsPage />}
+              {page === 'studio' ? <Studio /> : <SettingsPage />}
             </motion.div>
           </AnimatePresence>
         </main>
       </div>
+      <AnimatePresence>{devicesOpen && <DevicesPopup key="devices" onClose={() => useStore.setState({ devicesOpen: false })} />}</AnimatePresence>
       <Toasts />
       <AnimatePresence>
         <Welcome />

@@ -517,13 +517,7 @@ class _RemoteSheet extends StatelessWidget {
                 Expanded(child: _Toggle(icon: Icons.coffee_rounded, label: 'Be right back', on: r.privacy == 'brb', onTap: () => link.sendRemote('privacy', 'brb'))),
               ]),
               section('PC'),
-              Row(children: [
-                Expanded(
-                  child: _Toggle(icon: Icons.fiber_manual_record_rounded, label: r.recording ? 'Stop recording' : 'Record', on: r.recording, onTap: () => link.sendRemote('record')),
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: _Toggle(icon: Icons.videocam_rounded, label: 'Virtual cam', on: r.vcam, onTap: () => link.sendRemote('vcam'))),
-              ]),
+              _Toggle(icon: Icons.fiber_manual_record_rounded, label: r.recording ? 'Stop recording' : 'Record', on: r.recording, onTap: () => link.sendRemote('record')),
             ],
           );
         },

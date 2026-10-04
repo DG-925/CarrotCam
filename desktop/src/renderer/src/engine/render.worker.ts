@@ -97,6 +97,7 @@ let hasFinal = false
 let compare = -1
 let snapshotPending = false
 let thumbIds: string[] | null = null
+let thumbOffset = 0 // the shader takes 24 looks per pass; larger lists are rendered in turns
 let lastThumbsAt = 0
 
 let face: FaceData | null = null
@@ -184,6 +185,11 @@ function init(msg: Extract<ToRender, { t: 'init' }>): void {
 
   overlay = new OverlayLayer(W, H)
   standby = new StandbyScreen(W, H)
+  void fetch(new URL('logo.png', assetBase))
+    .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .then((b) => createImageBitmap(b))
+    .then((bmp) => (standby.logo = bmp))
+    .catch((err) => post({ t: 'log', message: `logo unavailable: ${err}` }))
   overlay.configure(effects.overlay, effects.privacy)
   allocateTargets()
 
@@ -896,9 +902,11 @@ function maybePostStats(now: number): void {
 
 function renderThumbs(baseTex: WebGLTexture): void {
   if (!thumbIds) return
-  const ids = thumbIds.slice(0, 24)
+  if (thumbOffset >= thumbIds.length) thumbOffset = 0
+  const ids = thumbIds.slice(thumbOffset, thumbOffset + 24)
+  thumbOffset = thumbIds.length > 24 ? thumbOffset + 24 : 0
   const cols = 4
-  const rows = Math.ceil(ids.length / cols)
+  const rows = 6 // fixed atlas size: every batch reuses the same target
   const cw = 192
   const ch = 108
   if (!thumbsT || thumbsT.w !== cols * cw || thumbsT.h !== rows * ch) {
@@ -1009,6 +1017,7 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
       break
     case 'thumbs':
       thumbIds = msg.ids.length ? msg.ids : null
+      thumbOffset = 0
       lastThumbsAt = 0
       break
     case 'standbyText':

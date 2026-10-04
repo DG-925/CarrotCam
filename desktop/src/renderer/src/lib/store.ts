@@ -12,7 +12,7 @@ import type { PhoneStatus } from '@shared/protocol'
 import type { EngineStats } from '@/engine/types'
 import type { Preset } from './presets'
 
-export type Page = 'studio' | 'devices' | 'settings'
+export type Page = 'studio' | 'settings'
 export type PanelTab =
   | 'looks'
   | 'adjust'
@@ -85,6 +85,8 @@ interface StoreState {
   app: AppSettings
   dark: boolean
   page: Page
+  /** the phones popup (opened from the camera dropdown) */
+  devicesOpen: boolean
   tab: PanelTab
   effects: EffectSettings
   userPresets: Preset[]
@@ -124,6 +126,7 @@ export const useStore = create<StoreState>((set, get) => ({
   app: defaultAppSettings,
   dark: true,
   page: 'studio',
+  devicesOpen: false,
   tab: 'looks',
   effects: loadEffects(),
   userPresets: loadPresets(),

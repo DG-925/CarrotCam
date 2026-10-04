@@ -48,7 +48,6 @@ export function Preview(): React.JSX.Element {
   const box = useRef<HTMLDivElement>(null)
   const effects = useStore((s) => s.effects)
   const updateEffects = useStore((s) => s.updateEffects)
-  const stats = useStore((s) => s.stats)
   const vcam = useStore((s) => s.vcam)
   const source = useStore((s) => s.source)
   const recording = useStore((s) => s.recording)
@@ -115,164 +114,161 @@ export function Preview(): React.JSX.Element {
   }
 
   const live = source.state === 'live'
-  const vcamLabel = !vcam.running ? 'Virtual camera off' : vcam.inUse ? 'Live in an app' : 'Virtual camera ready'
 
   return (
-    <div className="preview-wrap">
-      <div
-        ref={box}
-        className={`preview ${live ? 'live' : ''}`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={() => (drag.current = null)}
-        onWheel={onWheel}
-        onDoubleClick={() => {
-          if (document.fullscreenElement) void document.exitFullscreen()
-          else void box.current?.requestFullscreen()
-        }}
-        style={{ cursor: canPan ? (drag.current ? 'grabbing' : 'grab') : 'default' }}
-      >
-        <div ref={host} style={{ position: 'absolute', inset: 0 }} />
-        <div className="ring" />
+    <div className="preview-area">
+      <div className="preview-wrap">
+        <div
+          ref={box}
+          className={`preview ${live ? 'live' : ''}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={() => (drag.current = null)}
+          onWheel={onWheel}
+          onDoubleClick={() => {
+            if (document.fullscreenElement) void document.exitFullscreen()
+            else void box.current?.requestFullscreen()
+          }}
+          style={{ cursor: canPan ? (drag.current ? 'grabbing' : 'grab') : 'default' }}
+        >
+          <div ref={host} style={{ position: 'absolute', inset: 0 }} />
+          <div className="ring" />
 
-        <div className="preview-hud">
-          <div className="hud-row">
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <span className="chip" title={vcam.error ?? undefined}>
-                <span className={`dot ${vcam.running ? 'on' : ''}`} />
-                {vcamLabel}
-              </span>
-              <AnimatePresence>
-                {recording.active && (
-                  <motion.span className="chip" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
-                    <span className="dot rec" /> REC {elapsed}
-                  </motion.span>
+          <div className="preview-hud">
+            <div className="hud-row">
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {!vcam.running && vcam.error && (
+                  <span className="chip" title={vcam.error}>
+                    <span className="dot" /> Virtual camera unavailable
+                  </span>
                 )}
-                {effects.privacy !== 'off' && (
-                  <motion.span className="chip" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} style={{ background: 'rgba(255,122,26,0.85)' }}>
-                    <EyeOff size={13} /> {effects.privacy === 'brb' ? 'Be right back' : effects.privacy === 'freeze' ? 'Frozen' : 'Privacy blur'}
-                  </motion.span>
-                )}
-              </AnimatePresence>
+                <AnimatePresence>
+                  {recording.active && (
+                    <motion.span className="chip" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+                      <span className="dot rec" /> REC {elapsed}
+                    </motion.span>
+                  )}
+                  {effects.privacy !== 'off' && (
+                    <motion.span className="chip" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} style={{ background: 'rgba(255,122,26,0.85)' }}>
+                      <EyeOff size={13} /> {effects.privacy === 'brb' ? 'Be right back' : effects.privacy === 'freeze' ? 'Frozen' : 'Privacy blur'}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
-            {stats && (
-              <span className="chip mono">
-                {stats.inW > 0 && live ? `${stats.inW}×${stats.inH} → ` : ''}
-                {stats.outW}×{stats.outH} · {stats.fps} fps
-              </span>
+
+            {compare && (
+              <>
+                <div className="compare-label" style={{ left: 16, color: '#fff' }}>
+                  Before
+                </div>
+                <div className="compare-label" style={{ right: 16, color: '#fff' }}>
+                  After
+                </div>
+                <div className="compare-handle" style={{ left: `${split * 100}%` }} onPointerDown={onCompareDrag}>
+                  <span>
+                    <ChevronsLeftRight size={18} />
+                  </span>
+                </div>
+              </>
             )}
           </div>
-
-          {compare && (
-            <>
-              <div className="compare-label" style={{ left: 16, color: '#fff' }}>
-                Before
-              </div>
-              <div className="compare-label" style={{ right: 16, color: '#fff' }}>
-                After
-              </div>
-              <div className="compare-handle" style={{ left: `${split * 100}%` }} onPointerDown={onCompareDrag}>
-                <span>
-                  <ChevronsLeftRight size={18} />
-                </span>
-              </div>
-            </>
+        </div>
+      </div>
+      <div className="dock-wrap">
+        <AnimatePresence>
+          {popover && (
+            <motion.div
+              className="toolbar popover"
+              style={{ flexDirection: popover === 'privacy' ? 'column' : 'row', alignItems: 'stretch' }}
+              initial={{ opacity: 0, y: 8, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: 8, x: '-50%' }}
+              transition={{ duration: 0.2 }}
+            >
+              {popover === 'react'
+                ? REACTIONS.map((r) => (
+                    <button
+                      key={r.kind}
+                      className="tool"
+                      style={{ fontSize: 22 }}
+                      onClick={() => engine.react(r.kind)}
+                      title={r.label}
+                    >
+                      {r.emoji}
+                    </button>
+                  ))
+                : PRIVACY.map((p) => (
+                    <button
+                      key={p.mode}
+                      className={`btn ghost sm ${effects.privacy === p.mode ? 'on' : ''}`}
+                      style={{
+                        color: '#fff',
+                        justifyContent: 'space-between',
+                        gap: 18,
+                        background: effects.privacy === p.mode ? 'var(--accent)' : undefined
+                      }}
+                      onClick={() => {
+                        setPrivacy(p.mode)
+                        setPopover(null)
+                      }}
+                    >
+                      {p.label} <span style={{ opacity: 0.6, fontSize: 11 }}>{p.hint}</span>
+                    </button>
+                  ))}
+            </motion.div>
           )}
+        </AnimatePresence>
 
-          <AnimatePresence>
-            {popover && (
-              <motion.div
-                className="toolbar"
-                style={{ bottom: 76, flexDirection: popover === 'privacy' ? 'column' : 'row', alignItems: 'stretch' }}
-                initial={{ opacity: 0, y: 8, x: '-50%' }}
-                animate={{ opacity: 1, y: 0, x: '-50%' }}
-                exit={{ opacity: 0, y: 8, x: '-50%' }}
-                transition={{ duration: 0.2 }}
-              >
-                {popover === 'react'
-                  ? REACTIONS.map((r) => (
-                      <button
-                        key={r.kind}
-                        className="tool"
-                        style={{ fontSize: 22 }}
-                        onClick={() => engine.react(r.kind)}
-                        title={r.label}
-                      >
-                        {r.emoji}
-                      </button>
-                    ))
-                  : PRIVACY.map((p) => (
-                      <button
-                        key={p.mode}
-                        className={`btn ghost sm ${effects.privacy === p.mode ? 'on' : ''}`}
-                        style={{
-                          color: '#fff',
-                          justifyContent: 'space-between',
-                          gap: 18,
-                          background: effects.privacy === p.mode ? 'var(--accent)' : undefined
-                        }}
-                        onClick={() => {
-                          setPrivacy(p.mode)
-                          setPopover(null)
-                        }}
-                      >
-                        {p.label} <span style={{ opacity: 0.6, fontSize: 11 }}>{p.hint}</span>
-                      </button>
-                    ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="toolbar" onDoubleClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-            <button className={`tool ${compare ? 'on' : ''}`} onClick={() => set({ compare: !compare })}>
-              <Columns2 size={19} />
-              <span className="tooltip">Before / after</span>
-            </button>
-            <button
-              className={`tool ${effects.framing.mirror ? 'on' : ''}`}
-              onClick={() => updateEffects((e) => void (e.framing.mirror = !e.framing.mirror))}
-            >
-              <FlipHorizontal2 size={19} />
-              <span className="tooltip">Mirror</span>
-            </button>
-            <button
-              className="tool"
-              onClick={() =>
-                updateEffects((e) => void (e.framing.rotate = (((e.framing.rotate + 90) % 360) as 0 | 90 | 180 | 270)))
-              }
-            >
-              <RotateCw size={18} />
-              <span className="tooltip">Rotate {effects.framing.rotate ? `(${effects.framing.rotate}°)` : ''}</span>
-            </button>
-            <button className={`tool ${popover === 'react' ? 'on' : ''}`} onClick={() => setPopover(popover === 'react' ? null : 'react')}>
-              <PartyPopper size={19} />
-              <span className="tooltip">Reactions</span>
-            </button>
-            <div className="tool-sep" />
-            <button className="tool" onClick={() => void takeSnapshot()}>
-              <Camera size={19} />
-              <span className="tooltip">Snapshot</span>
-            </button>
-            <button className={`tool ${recording.active ? 'rec' : ''}`} onClick={() => void toggleRecording()}>
-              {recording.active ? <Square size={16} fill="currentColor" /> : <Circle size={19} />}
-              <span className="tooltip">{recording.active ? 'Stop recording' : 'Record'}</span>
-            </button>
-            <div className="tool-sep" />
-            <button
-              className={`tool ${effects.privacy !== 'off' ? 'on' : ''}`}
-              onClick={() => (effects.privacy !== 'off' ? setPrivacy(effects.privacy) : setPopover(popover === 'privacy' ? null : 'privacy'))}
-            >
-              <EyeOff size={19} />
-              <span className="tooltip">{effects.privacy !== 'off' ? 'Turn privacy off' : 'Privacy'}</span>
-            </button>
-            <button
-              className="tool"
-              onClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void box.current?.requestFullscreen())}
-            >
-              <Maximize2 size={18} />
-              <span className="tooltip">Full screen</span>
-            </button>
-          </div>
+        <div className="toolbar dock" onDoubleClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          <button className={`tool ${compare ? 'on' : ''}`} onClick={() => set({ compare: !compare })}>
+            <Columns2 size={19} />
+            <span className="tooltip">Before / after</span>
+          </button>
+          <button
+            className={`tool ${effects.framing.mirror ? 'on' : ''}`}
+            onClick={() => updateEffects((e) => void (e.framing.mirror = !e.framing.mirror))}
+          >
+            <FlipHorizontal2 size={19} />
+            <span className="tooltip">Mirror</span>
+          </button>
+          <button
+            className="tool"
+            onClick={() =>
+              updateEffects((e) => void (e.framing.rotate = (((e.framing.rotate + 90) % 360) as 0 | 90 | 180 | 270)))
+            }
+          >
+            <RotateCw size={18} />
+            <span className="tooltip">Rotate {effects.framing.rotate ? `(${effects.framing.rotate}°)` : ''}</span>
+          </button>
+          <button className={`tool ${popover === 'react' ? 'on' : ''}`} onClick={() => setPopover(popover === 'react' ? null : 'react')}>
+            <PartyPopper size={19} />
+            <span className="tooltip">Reactions</span>
+          </button>
+          <div className="tool-sep" />
+          <button className="tool" onClick={() => void takeSnapshot()}>
+            <Camera size={19} />
+            <span className="tooltip">Snapshot</span>
+          </button>
+          <button className={`tool ${recording.active ? 'rec' : ''}`} onClick={() => void toggleRecording()}>
+            {recording.active ? <Square size={16} fill="currentColor" /> : <Circle size={19} />}
+            <span className="tooltip">{recording.active ? 'Stop recording' : 'Record'}</span>
+          </button>
+          <div className="tool-sep" />
+          <button
+            className={`tool ${effects.privacy !== 'off' ? 'on' : ''}`}
+            onClick={() => (effects.privacy !== 'off' ? setPrivacy(effects.privacy) : setPopover(popover === 'privacy' ? null : 'privacy'))}
+          >
+            <EyeOff size={19} />
+            <span className="tooltip">{effects.privacy !== 'off' ? 'Turn privacy off' : 'Privacy'}</span>
+          </button>
+          <button
+            className="tool"
+            onClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void box.current?.requestFullscreen())}
+          >
+            <Maximize2 size={18} />
+            <span className="tooltip">Full screen</span>
+          </button>
         </div>
       </div>
     </div>

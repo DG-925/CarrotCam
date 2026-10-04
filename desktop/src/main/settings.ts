@@ -18,7 +18,8 @@ class SettingsStore extends EventEmitter {
           ...structuredClone(defaultAppSettings),
           ...saved,
           output: { ...defaultAppSettings.output, ...saved.output },
-          stream: { ...defaultAppSettings.stream, ...saved.stream }
+          stream: { ...defaultAppSettings.stream, ...saved.stream },
+          vcamEnabled: true // the virtual camera is always on
         }
       }
     } catch {
@@ -32,7 +33,7 @@ class SettingsStore extends EventEmitter {
   }
 
   set(patch: Partial<AppSettings>): AppSettings {
-    this.data = { ...this.data, ...patch }
+    this.data = { ...this.data, ...patch, vcamEnabled: true }
     this.emit('change', this.data, patch)
     this.scheduleSave()
     return this.data

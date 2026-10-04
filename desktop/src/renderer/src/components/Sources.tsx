@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Loader2, Plus, Smartphone, Video, AlertTriangle } from 'lucide-react'
+import { BatteryCharging, BatteryFull, BatteryLow, BatteryMedium, Loader2, Plus, Smartphone, Usb, Video, AlertTriangle } from 'lucide-react'
 import { selectSource } from '@/lib/controller'
 import { useStore } from '@/lib/store'
 import { stagger } from './ui'
@@ -19,8 +19,7 @@ export function Sources(): React.JSX.Element {
   const cameras = useStore((s) => s.cameras)
   const source = useStore((s) => s.source)
   const phoneStatus = useStore((s) => s.phoneStatus)
-  const linkStats = useStore((s) => s.linkStats)
-  const setPage = useStore((s) => s.setPage)
+  const set = useStore((s) => s.set)
 
   const status = (id: string): React.JSX.Element | string => {
     if (source.id !== id) return 'Tap to use'
@@ -49,7 +48,6 @@ export function Sources(): React.JSX.Element {
       {devices.map((d) => {
         const id = `phone:${d.id}`
         const ps = phoneStatus[d.id]
-        const ls = linkStats[d.id]
         return (
           <motion.button key={id} {...stagger(i++)} className={`source-card ${source.id === id ? 'active' : ''}`} onClick={() => void selectSource(id)}>
             <div className="icon">
@@ -59,7 +57,11 @@ export function Sources(): React.JSX.Element {
               <div className="title">{d.info.name}</div>
               <div className="sub">
                 {status(id)}
-                {source.id === id && ls?.bitrate ? <span>· {(ls.bitrate / 1000).toFixed(1)} Mbps</span> : null}
+                {d.usb && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                    <Usb size={12} /> USB
+                  </span>
+                )}
                 <Battery level={ps?.battery} charging={ps?.charging} />
               </div>
             </div>
@@ -80,13 +82,13 @@ export function Sources(): React.JSX.Element {
           </motion.button>
         )
       })}
-      <motion.button {...stagger(i++)} className="source-card add" onClick={() => setPage('devices')}>
+      <motion.button {...stagger(i++)} className="source-card add" onClick={() => set({ devicesOpen: true })}>
         <div className="icon">
           <Plus size={19} />
         </div>
         <div>
           <div className="title">Connect phone</div>
-          <div className="sub">Scan the QR code</div>
+          <div className="sub">Wi-Fi or USB cable</div>
         </div>
       </motion.button>
     </div>

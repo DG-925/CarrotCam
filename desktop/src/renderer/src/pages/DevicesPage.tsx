@@ -1,24 +1,12 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import QRCode from 'qrcode'
-import {
-  BatteryCharging,
-  Flashlight,
-  RefreshCw,
-  ShieldCheck,
-  Smartphone,
-  SwitchCamera,
-  Unplug,
-  Wifi,
-  Download,
-  Video,
-  Trash2
-} from 'lucide-react'
+import { BatteryCharging, RefreshCw, ShieldCheck, Smartphone, Unplug, Usb, Wifi, Download, Video, Trash2, X } from 'lucide-react'
 import { IPC, GITHUB_REPO, type ServerInfo } from '@shared/app'
 import { invoke } from '@/lib/ipc'
-import { phoneCommand, selectSource } from '@/lib/controller'
+import { selectSource } from '@/lib/controller'
 import { toast, useStore } from '@/lib/store'
-import { Slider, fadeUp, stagger } from '@/components/ui'
+import { fadeUp, stagger } from '@/components/ui'
 
 function QrCard(): React.JSX.Element {
   const server = useStore((s) => s.server)
@@ -80,11 +68,9 @@ function QrCard(): React.JSX.Element {
 function DeviceCard({ id }: { id: string }): React.JSX.Element | null {
   const device = useStore((s) => s.devices.find((d) => d.id === id))
   const status = useStore((s) => s.phoneStatus[id])
-  const link = useStore((s) => s.linkStats[id])
   const source = useStore((s) => s.source)
   if (!device) return null
   const active = source.id === `phone:${id}`
-  const zoom = status?.zoom ?? 1
   return (
     <motion.div className="device-card" layout {...fadeUp}>
       <div className="phone-icon">
@@ -97,19 +83,22 @@ function DeviceCard({ id }: { id: string }): React.JSX.Element | null {
         </div>
         <div className="device-meta">
           {active && <span className="badge ok">● {source.state === 'live' ? 'Live' : 'Connecting'}</span>}
+          <span className="badge">
+            {device.usb ? (
+              <>
+                <Usb size={11} /> USB cable
+              </>
+            ) : (
+              <>
+                <Wifi size={11} /> Wi-Fi
+              </>
+            )}
+          </span>
           {status?.battery !== undefined && (
             <span className={`badge ${status.battery < 20 && !status.charging ? 'err' : ''}`}>
               {status.charging && <BatteryCharging size={11} />} {Math.round(status.battery)}%
             </span>
           )}
-          {active && link?.width ? (
-            <span className="badge">
-              {link.width}×{link.height} · {link.fps} fps
-            </span>
-          ) : null}
-          {active && link?.codec ? <span className="badge">{link.codec}</span> : null}
-          {active && link?.bitrate ? <span className="badge">{(link.bitrate / 1000).toFixed(1)} Mbps</span> : null}
-          {active && link?.rtt ? <span className="badge">{link.rtt} ms</span> : null}
           {status?.thermal && status.thermal !== 'normal' && <span className="badge warn">🌡 {status.thermal}</span>}
         </div>
       </div>
@@ -123,50 +112,62 @@ function DeviceCard({ id }: { id: string }): React.JSX.Element | null {
           <Unplug size={14} />
         </button>
       </div>
-      {active && (
-        <div className="device-controls">
-          <button className="btn sm" onClick={() => phoneCommand(id, 'switchCamera')}>
-            <SwitchCamera size={14} /> {status?.facing === 'front' ? 'Back camera' : 'Front camera'}
-          </button>
-          <button className={`btn sm ${status?.torch ? 'primary' : ''}`} onClick={() => phoneCommand(id, 'torch', !status?.torch)}>
-            <Flashlight size={14} /> Torch
-          </button>
-          {status?.cameras && status.cameras.length > 2 && (
-            <select
-              className="btn sm"
-              value={status.cameraId}
-              onChange={(e) => phoneCommand(id, 'camera', e.target.value)}
-              style={{ paddingRight: 8 }}
-            >
-              {status.cameras.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          )}
-          <div style={{ flex: 1, minWidth: 180 }}>
-            <Slider
-              label="Phone zoom"
-              value={zoom}
-              min={1}
-              max={Math.max(2, Math.min(10, status?.maxZoom ?? 4))}
-              step={0.1}
-              defaultValue={1}
-              format={(v) => `${v.toFixed(1)}×`}
-              onChange={(v) => {
-                useStore.setState({ phoneStatus: { ...useStore.getState().phoneStatus, [id]: { ...status, zoom: v } } })
-                phoneCommand(id, 'zoom', v)
-              }}
-            />
-          </div>
-        </div>
-      )}
     </motion.div>
   )
 }
 
-export function DevicesPage(): React.JSX.Element {
+function UsbCard(): React.JSX.Element {
+  const usb = useStore((s) => s.server?.usb ?? [])
+  const viaUsb = useStore((s) => s.devices.some((d) => d.usb))
+  return (
+    <motion.div className="settings-card" {...stagger(2)}>
+      <h2>
+        <Usb size={18} /> Connect with a USB cable
+      </h2>
+      <div className="row" style={{ paddingTop: 0 }}>
+        <div className="label">
+          <b>{viaUsb ? 'Phone connected by cable' : usb.length ? 'Phone cable detected' : 'No phone plugged in yet'}</b>
+          <small>
+            {viaUsb
+              ? 'Video goes over the cable — no Wi-Fi needed.'
+              : usb.length
+                ? `Open CarrotCam on the phone — it finds this PC (${usb[0]}) by itself.`
+                : 'A cable gives the steadiest picture and charges your phone.'}
+          </small>
+        </div>
+        <span className={`badge ${usb.length ? 'ok' : ''}`}>{usb.length ? '● USB' : 'Waiting'}</span>
+      </div>
+      <ol className="steps">
+        <li>
+          <span className="num">1</span>
+          <div>
+            <b>Plug your phone into this PC</b>
+            <div className="hint">Any USB data cable works.</div>
+          </div>
+        </li>
+        <li>
+          <span className="num">2</span>
+          <div>
+            <b>Turn on USB tethering</b>
+            <div className="hint">
+              Android: in CarrotCam tap <b>USB cable</b> (or Settings → Hotspot &amp; tethering → USB tethering). iPhone: turn on
+              Personal Hotspot.
+            </div>
+          </div>
+        </li>
+        <li>
+          <span className="num">3</span>
+          <div>
+            <b>Open CarrotCam on the phone</b>
+            <div className="hint">It connects over the cable automatically — Wi-Fi can stay off.</div>
+          </div>
+        </li>
+      </ol>
+    </motion.div>
+  )
+}
+
+export function DevicesPopup({ onClose }: { onClose: () => void }): React.JSX.Element {
   const devices = useStore((s) => s.devices)
   const server = useStore((s) => s.server)
   const [trusted, setTrusted] = useState<{ id: string; name: string; lastSeen: number }[]>([])
@@ -180,119 +181,148 @@ export function DevicesPage(): React.JSX.Element {
     void refresh()
   }, [devices.length])
 
+  useEffect(() => {
+    const esc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onClose])
+
   const fixFirewall = async (): Promise<void> => {
     const ok = await invoke<boolean>(IPC.firewallFix)
     toast(ok ? { kind: 'success', title: 'Firewall rule added' } : { kind: 'error', title: 'Firewall change was cancelled' })
   }
 
   return (
-    <div className="page-inner">
-      <motion.div className="page-head" {...fadeUp}>
-        <div>
-          <h1>Devices</h1>
-          <p>Use your phone as a wireless studio camera — connect over Wi-Fi in seconds.</p>
-        </div>
-        <span className={`badge ${server?.running ? 'ok' : 'err'}`}>
-          {server?.running ? `Listening on port ${server.port}` : 'Server offline'}
-        </span>
-      </motion.div>
+    <motion.div
+      className="modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        className="modal wide"
+        role="dialog"
+        aria-label="Phones"
+        initial={{ scale: 0.96, y: 16 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.96, y: 16, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+      >
+        <button className="icon-btn modal-close" onClick={onClose} title="Close (Esc)">
+          <X size={18} />
+        </button>
+        <motion.div className="page-head" {...fadeUp} style={{ paddingRight: 44 }}>
+          <div>
+            <h1>Phones</h1>
+            <p>Use your phone as a studio camera — connect over Wi-Fi or a USB cable.</p>
+          </div>
+          <span className={`badge ${server?.running ? 'ok' : 'err'}`}>
+            {server?.running ? `Listening on port ${server.port}` : 'Server offline'}
+          </span>
+        </motion.div>
 
-      <div className="connect-grid">
-        <QrCard />
-        <div style={{ display: 'grid', gap: 18 }}>
-          <motion.div className="settings-card" {...stagger(1)}>
-            <h2>
-              <Smartphone size={18} /> Connected phones
-            </h2>
-            {devices.length === 0 ? (
-              <div className="empty">
-                <div style={{ fontSize: 40, marginBottom: 6 }}>📱</div>
-                No phones connected yet.
-                <br />
-                Scan the code on the left with the CarrotCam app.
-              </div>
-            ) : (
-              <AnimatePresence>
-                {devices.map((d) => (
-                  <DeviceCard key={d.id} id={d.id} />
-                ))}
-              </AnimatePresence>
-            )}
-          </motion.div>
+        <div className="connect-grid">
+          <QrCard />
+          <div style={{ display: 'grid', gap: 18 }}>
+            <motion.div className="settings-card" {...stagger(1)}>
+              <h2>
+                <Smartphone size={18} /> Connected phones
+              </h2>
+              {devices.length === 0 ? (
+                <div className="empty">
+                  <div style={{ fontSize: 40, marginBottom: 6 }}>📱</div>
+                  No phones connected yet.
+                  <br />
+                  Scan the code on the left with the CarrotCam app.
+                </div>
+              ) : (
+                <AnimatePresence>
+                  {devices.map((d) => (
+                    <DeviceCard key={d.id} id={d.id} />
+                  ))}
+                </AnimatePresence>
+              )}
+            </motion.div>
 
-          <motion.div className="settings-card" {...stagger(2)}>
-            <h2>
-              <Download size={18} /> Get the phone app
-            </h2>
-            <ol className="steps">
-              <li>
-                <span className="num">1</span>
-                <div>
-                  <b>Install CarrotCam on your phone</b>
-                  <div className="hint">
-                    Download the Android APK from the{' '}
-                    <a
-                      href="#"
-                      style={{ color: 'var(--accent)' }}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        void invoke(IPC.openExternal, `https://github.com/${GITHUB_REPO}/releases/latest`)
-                      }}
-                    >
-                      latest GitHub release
-                    </a>
-                    . It updates itself after that.
-                  </div>
-                </div>
-              </li>
-              <li>
-                <span className="num">2</span>
-                <div>
-                  <b>Join the same Wi-Fi as this PC</b>
-                  <div className="hint">5 GHz Wi-Fi or USB tethering gives the smoothest 1080p60.</div>
-                </div>
-              </li>
-              <li>
-                <span className="num">3</span>
-                <div>
-                  <b>Scan the QR code or pick this PC from the list</b>
-                  <div className="hint">Paired phones reconnect automatically next time.</div>
-                </div>
-              </li>
-            </ol>
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-              <button className="btn sm" onClick={() => void fixFirewall()}>
-                <ShieldCheck size={14} /> Allow through firewall
-              </button>
-            </div>
-          </motion.div>
+            <UsbCard />
 
-          {trusted.length > 0 && (
             <motion.div className="settings-card" {...stagger(3)}>
               <h2>
-                <ShieldCheck size={18} /> Trusted phones
+                <Download size={18} /> Get the phone app
               </h2>
-              {trusted.map((t) => (
-                <div className="row" key={t.id}>
-                  <div className="label">
-                    <b>{t.name}</b>
-                    <small>Last seen {new Date(t.lastSeen).toLocaleString()}</small>
+              <ol className="steps">
+                <li>
+                  <span className="num">1</span>
+                  <div>
+                    <b>Install CarrotCam on your phone</b>
+                    <div className="hint">
+                      Download the Android APK from the{' '}
+                      <a
+                        href="#"
+                        style={{ color: 'var(--accent)' }}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          void invoke(IPC.openExternal, `https://github.com/${GITHUB_REPO}/releases/latest`)
+                        }}
+                      >
+                        latest GitHub release
+                      </a>
+                      . It updates itself after that.
+                    </div>
                   </div>
-                  <button
-                    className="btn ghost sm danger"
-                    onClick={async () => {
-                      await invoke(IPC.serverForget, t.id)
-                      void refresh()
-                    }}
-                  >
-                    <Trash2 size={14} /> Forget
-                  </button>
-                </div>
-              ))}
+                </li>
+                <li>
+                  <span className="num">2</span>
+                  <div>
+                    <b>Join the same Wi-Fi as this PC — or plug in a USB cable</b>
+                    <div className="hint">5 GHz Wi-Fi or a USB cable gives the smoothest picture.</div>
+                  </div>
+                </li>
+                <li>
+                  <span className="num">3</span>
+                  <div>
+                    <b>Scan the QR code or pick this PC from the list</b>
+                    <div className="hint">Paired phones reconnect automatically next time.</div>
+                  </div>
+                </li>
+              </ol>
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+                <button className="btn sm" onClick={() => void fixFirewall()}>
+                  <ShieldCheck size={14} /> Allow through firewall
+                </button>
+              </div>
             </motion.div>
-          )}
+
+            {trusted.length > 0 && (
+              <motion.div className="settings-card" {...stagger(4)}>
+                <h2>
+                  <ShieldCheck size={18} /> Trusted phones
+                </h2>
+                {trusted.map((t) => (
+                  <div className="row" key={t.id}>
+                    <div className="label">
+                      <b>{t.name}</b>
+                      <small>Last seen {new Date(t.lastSeen).toLocaleString()}</small>
+                    </div>
+                    <button
+                      className="btn ghost sm danger"
+                      onClick={async () => {
+                        await invoke(IPC.serverForget, t.id)
+                        void refresh()
+                      }}
+                    >
+                      <Trash2 size={14} /> Forget
+                    </button>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

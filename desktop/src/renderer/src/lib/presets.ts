@@ -16,6 +16,13 @@ function make(id: string, name: string, emoji: string, fn: (e: EffectSettings) =
 
 export const BUILT_IN_PRESETS: Preset[] = [
   make('natural', 'Natural', '🌿', () => {}),
+  // the camera follows your face; the background stays sharp (no blur)
+  make('follow', 'Follow Me', '🎯', (e) => {
+    e.framing.autoFrame = true
+    e.framing.tightness = 'medium'
+    e.framing.speed = 55
+    e.background = { ...e.background, mode: 'none' }
+  }),
   make('studio', 'Studio Glow', '✨', (e) => {
     e.filter = { id: 'portrait', intensity: 80 }
     e.retouch.smooth = 45

@@ -96,6 +96,7 @@ const List<(String, String)> kFilters = [
 
 const List<(String, String)> kPresets = [
   ('natural', '🌿 Natural'),
+  ('follow', '🎯 Follow Me'),
   ('studio', '✨ Studio Glow'),
   ('streamer', '🎮 Streamer'),
   ('cinematic', '🎬 Cinematic'),

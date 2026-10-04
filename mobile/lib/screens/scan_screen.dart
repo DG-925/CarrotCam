@@ -95,7 +95,7 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                _hint ?? 'CarrotCam → Devices',
+                _hint ?? 'CarrotCam → camera menu → Phones',
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
               ),
             ]),

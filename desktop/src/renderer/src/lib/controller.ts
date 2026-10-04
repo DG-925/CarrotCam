@@ -35,39 +35,31 @@ function applyTheme(): void {
 
 // ---- settings -----------------------------------------------------------------------
 export async function updateApp(patch: Partial<AppSettings>): Promise<void> {
-  const prev = st().app
   const next = await invoke<AppSettings>(IPC.settingsSet, patch)
   useStore.setState({ app: next })
   if (patch.theme) applyTheme()
   if (patch.output) engine.setOutput(next.output.width, next.output.height, next.output.fps)
-  if (patch.vcamEnabled !== undefined && patch.vcamEnabled !== prev.vcamEnabled) await setVcam(next.vcamEnabled)
 }
 
 // ---- virtual camera -----------------------------------------------------------------
-async function setVcam(enabled: boolean): Promise<void> {
-  if (enabled) {
-    const driver = await invoke<DriverStatus>(IPC.driverStatus)
-    useStore.setState({ driver })
-    if (driver.supported && !driver.upToDate) {
-      const installed = await invoke<DriverStatus>(IPC.driverInstall)
-      useStore.setState({ driver: installed })
-    }
+/** The virtual camera is always on: installs the driver when needed and starts publishing. */
+export async function startVcam(): Promise<void> {
+  const driver = await invoke<DriverStatus>(IPC.driverStatus)
+  useStore.setState({ driver })
+  if (driver.supported && !driver.upToDate) {
+    const installed = await invoke<DriverStatus>(IPC.driverInstall)
+    useStore.setState({ driver: installed })
   }
-  const running = engine.setVcam(enabled)
+  const running = engine.setVcam(true)
   useStore.setState({
     vcam: {
       ...st().vcam,
       running,
       available: window.carrot.vcam.available(),
-      error: enabled && !running ? (window.carrot.vcam.error() ?? 'The virtual camera could not start.') : null
+      error: running ? null : (window.carrot.vcam.error() ?? 'The virtual camera could not start.')
     }
   })
   pushRemoteState()
-}
-
-export async function toggleVcam(): Promise<void> {
-  await updateApp({ vcamEnabled: !st().app.vcamEnabled })
-  toast({ kind: 'info', title: st().app.vcamEnabled ? 'Virtual camera on' : 'Virtual camera off' })
 }
 
 // ---- sources ------------------------------------------------------------------------
@@ -184,7 +176,7 @@ function onDevices(devices: ConnectedDevice[]): void {
       }
       links.set(d.id, link)
       if (!prev.some((p) => p.id === d.id)) {
-        toast({ kind: 'success', title: `${d.info.name} connected`, body: d.info.model || undefined })
+        toast({ kind: 'success', title: `${d.info.name} connected`, body: d.usb ? 'Over USB cable' : d.info.model || undefined })
       }
     }
   }
@@ -288,7 +280,8 @@ async function onRemote(deviceId: string, action: string, value: unknown): Promi
       await toggleRecording()
       break
     case 'vcam':
-      await toggleVcam()
+      // always on; just make sure it is running
+      if (!st().vcam.running) await startVcam()
       break
     case 'preset': {
       const p = BUILT_IN_PRESETS.find((x) => x.id === value)
@@ -299,10 +292,10 @@ async function onRemote(deviceId: string, action: string, value: unknown): Promi
 }
 
 function remoteState(): RemoteState {
-  const { effects: e, app, recording } = st()
+  const { effects: e, recording } = st()
   return {
     active: false,
-    vcam: app.vcamEnabled,
+    vcam: true,
     filter: e.filter.id,
     background: e.background.mode,
     autoFrame: e.framing.autoFrame,
@@ -447,8 +440,9 @@ export async function setBackgroundImage(source: { file?: File; builtIn?: string
     blob = source.file!
     id = `user:${Date.now().toString(36)}`
     await idb.set(`bg:${id}`, blob)
-    const list = ((await idb.get<string[]>('bg:list')) ?? []).filter((x) => x !== id)
-    await idb.set('bg:list', [id, ...list].slice(0, 8))
+    const list = [id, ...((await idb.get<string[]>('bg:list')) ?? []).filter((x) => x !== id)]
+    await idb.set('bg:list', list.slice(0, 12))
+    for (const old of list.slice(12)) await idb.del(`bg:${old}`)
   }
   if (!blob) return
   await engine.setBackgroundImage(blob)
@@ -466,6 +460,21 @@ export async function userBackgrounds(): Promise<{ id: string; url: string }[]> 
     if (blob) out.push({ id, url: URL.createObjectURL(blob) })
   }
   return out
+}
+
+/** Deletes a background the user added; turns the backdrop off if it was in use. */
+export async function removeUserBackground(id: string): Promise<void> {
+  const list = (await idb.get<string[]>('bg:list')) ?? []
+  await idb.set('bg:list', list.filter((x) => x !== id))
+  await idb.del(`bg:${id}`)
+  if (st().effects.background.imageId === id) {
+    await engine.setBackgroundImage(null)
+    st().updateEffects((e) => {
+      e.background.imageId = null
+      if (e.background.mode === 'image') e.background.mode = 'none'
+    })
+  }
+  toast({ kind: 'info', title: 'Background removed' })
 }
 
 export async function selectStoredBackground(id: string): Promise<void> {
@@ -509,9 +518,6 @@ function onShortcut(action: string): void {
       break
     case 'snapshot':
       void takeSnapshot()
-      break
-    case 'toggle-vcam':
-      void toggleVcam()
       break
   }
 }
@@ -564,7 +570,7 @@ export async function initController(): Promise<void> {
   navigator.mediaDevices.addEventListener('devicechange', () => void refreshCameras())
   await refreshCameras()
 
-  await setVcam(app.vcamEnabled)
+  await startVcam()
   setInterval(() => {
     const inUse = window.carrot.vcam.isConnected()
     if (inUse !== st().vcam.inUse) useStore.setState({ vcam: { ...st().vcam, inUse } })

@@ -59,6 +59,8 @@ export interface ServerInfo {
   pcName: string
   pcId: string
   addresses: string[]
+  /** this PC's addresses on phones connected by USB cable (USB tethering) */
+  usb: string[]
   pairCode: string
   qr: string // payload encoded in the QR code
 }
@@ -67,6 +69,8 @@ export interface ConnectedDevice {
   id: string
   info: PhoneInfo
   address: string
+  /** connected through a USB cable rather than Wi-Fi */
+  usb: boolean
   connectedAt: number
 }
 
@@ -79,7 +83,7 @@ export type UpdateState =
   | { state: 'ready'; version: string }
   | { state: 'error'; message: string }
 
-export type TrayAction = 'toggle-vcam' | 'privacy-blur' | 'privacy-brb' | 'privacy-off' | 'snapshot'
+export type TrayAction = 'privacy-blur' | 'privacy-brb' | 'privacy-off' | 'snapshot'
 
 /** IPC channels exposed by the preload bridge. */
 export const IPC = {

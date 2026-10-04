@@ -29,7 +29,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "CarrotCam ${TAG#v}" --generate-notes
+            # tag the commit being built (matters for manual runs on a branch)
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "CarrotCam ${TAG#v}" --generate-notes
           fi
 
   windows:

@@ -1,4 +1,5 @@
 #include "DShowSoftcam.h"
+#include "LogoImage.h"
 
 #include <cstring>
 #include <string>
@@ -209,10 +210,15 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
     const float cx = width * 0.5f;
     const float cy = height * 0.40f;
     const float r = height * 0.11f;
-    auto smooth = [](float e0, float e1, float x)
+    // the CarrotCam logo (LogoImage.h), centered on (cx, cy)
+    const float logo = r * 2.3f;
+    const float lx0 = cx - logo * 0.5f, ly0 = cy - logo * 0.5f;
+    const int ls = carrotcam_logo::kSize;
+    auto texel = [&](int tx, int ty, int c) -> float
     {
-        float t = (std::min)((std::max)((x - e0) / (e1 - e0), 0.0f), 1.0f);
-        return t * t * (3.0f - 2.0f * t);
+        tx = (std::min)((std::max)(tx, 0), ls - 1);
+        ty = (std::min)((std::max)(ty, 0), ls - 1);
+        return carrotcam_logo::kRgba[((std::size_t)ty * ls + tx) * 4 + c];
     };
     uint8_t* px = static_cast<uint8_t*>(bits);
     for (int y = 0; y < height; y++)
@@ -227,17 +233,23 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
             const float d = std::sqrt(dx * dx + dy * dy);
             const float glow = std::exp(-(d * d) / (2.0f * (r * 2.4f) * (r * 2.4f)));
             rr += 90.0f * glow; g += 36.0f * glow; b += 6.0f * glow;
-            // logo: orange disc, dark ring, orange lens with a highlight
-            const float disc = 1.0f - smooth(r - 1.0f, r + 1.0f, d);
-            const float ring = 1.0f - smooth(r * 0.62f - 1.0f, r * 0.62f + 1.0f, d);
-            const float lens = 1.0f - smooth(r * 0.40f - 1.0f, r * 0.40f + 1.0f, d);
-            const float hx = x - (cx - r * 0.14f), hy = y - (cy - r * 0.14f);
-            const float hl = 1.0f - smooth(r * 0.09f - 1.0f, r * 0.09f + 1.0f, std::sqrt(hx * hx + hy * hy));
-            auto mix = [](float a, float c, float t) { return a + (c - a) * t; };
-            rr = mix(rr, 255.0f, disc); g = mix(g, 122.0f, disc); b = mix(b, 26.0f, disc);
-            rr = mix(rr, 24.0f, ring);  g = mix(g, 18.0f, ring);  b = mix(b, 14.0f, ring);
-            rr = mix(rr, 255.0f, lens); g = mix(g, 140.0f, lens); b = mix(b, 50.0f, lens);
-            rr = mix(rr, 255.0f, hl);   g = mix(g, 236.0f, hl);   b = mix(b, 210.0f, hl);
+            // logo: bilinear sample, premultiplied "over"
+            const float u = (x + 0.5f - lx0) / logo * ls - 0.5f;
+            const float v = (y + 0.5f - ly0) / logo * ls - 0.5f;
+            if (u > -1.0f && v > -1.0f && u < (float)ls && v < (float)ls)
+            {
+                const int u0 = (int)std::floor(u), v0 = (int)std::floor(v);
+                const float fu = u - u0, fv = v - v0;
+                float c[4];
+                for (int k = 0; k < 4; k++)
+                {
+                    const float top = texel(u0, v0, k) * (1.0f - fu) + texel(u0 + 1, v0, k) * fu;
+                    const float bottom = texel(u0, v0 + 1, k) * (1.0f - fu) + texel(u0 + 1, v0 + 1, k) * fu;
+                    c[k] = top * (1.0f - fv) + bottom * fv;
+                }
+                const float inv = 1.0f - c[3] / 255.0f;
+                rr = c[0] + rr * inv; g = c[1] + g * inv; b = c[2] + b * inv;
+            }
             row[x * 3 + 0] = (uint8_t)(std::min)(b, 255.0f);
             row[x * 3 + 1] = (uint8_t)(std::min)(g, 255.0f);
             row[x * 3 + 2] = (uint8_t)(std::min)(rr, 255.0f);
@@ -258,9 +270,9 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
         SelectObject(dc, old_font);
         DeleteObject(font);
     };
-    drawText(L"CarrotCam", (int)(height * 0.075f), FW_BOLD, RGB(255, 255, 255), (int)(cy + r * 1.5f));
+    drawText(L"CarrotCam", (int)(height * 0.075f), FW_BOLD, RGB(255, 255, 255), (int)(cy + r * 1.45f));
     drawText(L"Open the CarrotCam app to start the camera", (int)(height * 0.032f), FW_NORMAL,
-        RGB(170, 160, 150), (int)(cy + r * 1.5f + height * 0.105f));
+        RGB(170, 160, 150), (int)(cy + r * 1.45f + height * 0.105f));
     GdiFlush();
 
     std::memcpy(dib, bits, stride * height);
