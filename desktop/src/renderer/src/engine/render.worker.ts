@@ -107,7 +107,7 @@ let mlSentAt = 0
 let mlConfigKey = ''
 let lastGestureAt = 0
 let handControl = false
-// laser pointer / air drawing (source uv, so it stays on your finger when zooming)
+// air drawing (source uv, so it stays on your finger when zooming)
 let inkTarget: [number, number] | null = null
 let inkPointer: [number, number] | null = null
 let inkDrawing = false
@@ -392,7 +392,7 @@ function onMl(msg: FromMl): void {
   }
 }
 
-// ---- laser pointer / air drawing ------------------------------------------------------
+// ---- air drawing ------------------------------------------------------
 function onInk(pointer: [number, number] | null, drawing: boolean): void {
   inkTarget = pointer
   inkDrawing = drawing
@@ -413,7 +413,7 @@ function onInk(pointer: [number, number] | null, drawing: boolean): void {
 }
 
 function updateInk(toOut: (p: [number, number]) => [number, number]): void {
-  // hand positions arrive ~15x a second: glide the dot between them
+  // hand positions arrive ~15x a second: glide the pen between them
   if (inkTarget) {
     inkPointer = inkPointer
       ? [inkPointer[0] + (inkTarget[0] - inkPointer[0]) * 0.6, inkPointer[1] + (inkTarget[1] - inkPointer[1]) * 0.6]
@@ -423,11 +423,7 @@ function updateInk(toOut: (p: [number, number]) => [number, number]): void {
     const [u, v] = toOut(p)
     return [u * W, v * H]
   }
-  overlay.setInk(
-    inkPointer ? px(inkPointer) : null,
-    strokes.map((st) => st.map(px)),
-    inkDrawing
-  )
+  overlay.setInk(inkDrawing && inkPointer ? px(inkPointer) : null, strokes.map((st) => st.map(px)))
 }
 
 // ---- source handling ---------------------------------------------------------------

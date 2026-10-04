@@ -33,7 +33,7 @@
 - **Retouch:** smooth skin, face light, brighten eyes, whiten teeth, slim face, enlarge eyes
 - **Lighting:** face-tracking **spotlight**, studio subject light, directional key light, **night boost** with temporal denoise
 - **Framing:** **auto framing / center stage** (also as the one-tap "Follow me" look), zoom, pan (drag & scroll on the preview), rotate, straighten, mirror, flip
-- **Hand control:** pinch with both hands and pull apart to **zoom**, pinch with one hand and drag to **move**, point with your index finger for a **laser pointer**, **draw in the air** (rock on toggles drawing, open palm erases), and hold a gesture for commands: peace sign takes a snapshot, three fingers toggles Be right back, a heart with both hands sends hearts, thumbs up / down change the filter, fist toggles background blur
+- **Hand control:** pinch with both hands and pull apart to **zoom**, pinch with one hand and drag to **move**, **draw in the air** (rock on toggles drawing, then point to draw; open palm erases), and hold a gesture for commands: peace sign takes a snapshot, three fingers toggles Be right back, a heart with both hands sends hearts, thumbs up / down change the filter, point up toggles Follow me, fist toggles background blur
 - **Effects:** glitch, VHS, pixel, comic, sketch, halftone, thermal, night vision, poster, chromatic, twin
 - **Overlays:** animated name tag (lower third), clock, LIVE / ON AIR badge, rounded border, **logo watermark**, **reactions** (hearts, confetti, fireworks…) and **gesture reactions** (thumbs up, peace sign, rock on, point up, open palm)
 - **Privacy:** blur everything, “Be right back” card, freeze frame — with global hotkeys

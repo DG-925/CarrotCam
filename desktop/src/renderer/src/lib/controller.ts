@@ -54,7 +54,7 @@ function applyHandControl(enabled: boolean): void {
   }
 }
 
-/** Air drawing on/off (pointing draws instead of showing the laser). */
+/** Air drawing on/off (while on, the pointing finger draws). */
 export function toggleDrawing(): void {
   const on = !st().inkMode
   useStore.setState({ inkMode: on })
@@ -133,6 +133,12 @@ function onHandCommand(c: HandCommand): void {
     case 'prevFilter':
       cycleFilter(-1)
       break
+    case 'follow':
+      updateEffects((e) => {
+        e.framing.autoFrame = !e.framing.autoFrame
+      })
+      toast({ kind: 'info', title: effects.framing.autoFrame ? 'Follow me off' : 'Follow me on' })
+      break
     case 'brb':
       setPrivacy('brb')
       break
@@ -165,7 +171,7 @@ function createHandControl(): HandControl {
         e.framing.panY = v.panY
         e.framing.autoFrame = false // your hands are in charge now
       })
-      if (wasFollowing) toast({ kind: 'info', title: 'Follow me paused', body: 'Hand zoom took over. Turn it back on in Framing.' })
+      if (wasFollowing) toast({ kind: 'info', title: 'Follow me paused', body: 'Hand zoom took over. Hold a point-up gesture to turn it back on.' })
     },
     command: onHandCommand,
     hint: (handHint) => useStore.setState({ handHint }),

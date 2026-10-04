@@ -107,7 +107,7 @@ export class Engine {
     this.post({ t: 'source', stream: processor.readable, id }, [processor.readable as unknown as Transferable])
   }
 
-  /** Laser pointer / pen position (source uv) from hand control. */
+  /** Pen position (source uv) from hand control while drawing. */
   setInk(pointer: [number, number] | null, drawing: boolean): void {
     this.post({ t: 'ink', pointer, drawing })
   }

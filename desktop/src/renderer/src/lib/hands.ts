@@ -2,14 +2,14 @@
 //
 //  - pinch (thumb + index) with both hands, pull apart / together -> zoom
 //  - pinch with one hand and drag (while zoomed)                  -> move the view
-//  - point with the index finger                                  -> laser pointer / draw
+//  - point with the index finger while drawing is on              -> draw
 //  - hold a gesture for a moment                                  -> command
 //
 // Hand positions arrive in source coordinates (not mirrored, not zoomed), so
 // moving the view never feeds back into the hand positions.
 import type { HandData } from '@/engine/types'
 
-export type HandCommand = 'reset' | 'snapshot' | 'nextFilter' | 'prevFilter' | 'brb' | 'blur' | 'hearts' | 'draw'
+export type HandCommand = 'reset' | 'snapshot' | 'nextFilter' | 'prevFilter' | 'follow' | 'brb' | 'blur' | 'hearts' | 'draw'
 
 export interface View {
   zoom: number
@@ -22,14 +22,14 @@ export interface HandActions {
   setView: (v: View) => void
   command: (c: HandCommand) => void
   hint: (text: string | null) => void
-  /** index fingertip (source uv) while pointing, else null */
+  /** index fingertip (source uv) while drawing with a pointing finger, else null */
   pointer: (p: [number, number] | null) => void
   drawing: () => boolean
 }
 
 /**
  * Gestures you hold to run a command. `gesture` is a MediaPipe category or one
- * of our own poses worked out from the fingers: 'Three' and 'Heart'.
+ * of our own poses worked out from the fingers: 'Point', 'Three' and 'Heart'.
  */
 export const HAND_COMMANDS: { gesture: string; pose: string; command: HandCommand; label: string }[] = [
   { gesture: 'Open_Palm', pose: 'Open palm', command: 'reset', label: 'Reset zoom (erases the drawing while drawing)' },
@@ -37,6 +37,7 @@ export const HAND_COMMANDS: { gesture: string; pose: string; command: HandComman
   { gesture: 'Three', pose: 'Three fingers', command: 'brb', label: 'Be right back on/off' },
   { gesture: 'Thumb_Up', pose: 'Thumbs up', command: 'nextFilter', label: 'Next filter' },
   { gesture: 'Thumb_Down', pose: 'Thumbs down', command: 'prevFilter', label: 'Previous filter' },
+  { gesture: 'Point', pose: 'Point up', command: 'follow', label: 'Follow me on/off' },
   { gesture: 'Closed_Fist', pose: 'Fist', command: 'blur', label: 'Background blur on/off' },
   { gesture: 'ILoveYou', pose: 'Rock on', command: 'draw', label: 'Drawing on/off' },
   { gesture: 'Heart', pose: 'Heart with both hands', command: 'hearts', label: 'Hearts' }
@@ -142,12 +143,13 @@ export class HandControl {
     // two hands making a heart
     const heart = hands.length >= 2 && isHeart(hands[0], hands[1], aspect)
 
-    // pointing with the index finger: laser pointer, or the pen while drawing
-    const pointer = heart ? undefined : hands.find((h) => poseOf(h) === 'Point')
-    if (pointer) {
-      this.point(pointer.tip)
+    // while drawing is on, the pointing finger is the pen (otherwise pointing
+    // is the Follow me command below)
+    const pen = heart || !this.a.drawing() ? undefined : hands.find((h) => poseOf(h) === 'Point')
+    if (pen) {
+      this.point(pen.tip)
       this.hold = { gesture: '', since: 0 }
-      this.hint(this.a.drawing() ? 'Drawing' : 'Laser pointer')
+      this.hint('Drawing')
       return
     }
     this.point(null)
@@ -157,7 +159,7 @@ export class HandControl {
       ? { h: hands[0], c: HAND_COMMANDS.find((c) => c.gesture === 'Heart') }
       : hands
           .map((h) => ({ h, c: HAND_COMMANDS.find((c) => c.gesture === poseOf(h)) }))
-          .find((x) => x.c && (x.c.gesture === 'Three' || x.h.score > 0.6))
+          .find((x) => x.c && (x.c.gesture === 'Three' || x.c.gesture === 'Point' || x.h.score > 0.6))
     if (!match?.c) {
       this.hold = { gesture: '', since: 0 }
       // tell people their hand is seen, so a gesture that is not recognised

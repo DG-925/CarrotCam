@@ -49,7 +49,7 @@ export function FramingPanel(): React.JSX.Element {
                   </div>
                   <div>
                     <b>Point (index finger)</b>
-                    <span>Laser pointer, or draw while drawing is on</span>
+                    <span>Draws while drawing is on</span>
                   </div>
                   {HAND_COMMANDS.map((c) => (
                     <div key={c.gesture}>

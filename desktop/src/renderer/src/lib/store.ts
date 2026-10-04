@@ -104,7 +104,7 @@ interface StoreState {
   compare: boolean
   /** what hand control is doing right now ("Zoom 1.8×", "Snapshot — hold…") */
   handHint: string | null
-  /** air drawing: pointing draws instead of showing the laser */
+  /** air drawing: the pointing finger draws instead of toggling Follow me */
   inkMode: boolean
   ml: { ready: boolean; delegate: string; error?: string } | null
   toasts: Toast[]

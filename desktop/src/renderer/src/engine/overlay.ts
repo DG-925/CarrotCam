@@ -87,9 +87,8 @@ export class OverlayLayer {
   private brbSince = 0
   private logo: ImageBitmap | null = null
   hasContent = false
-  // laser pointer / air drawing, in output pixels (set every frame while used)
-  private ink: { pointer: [number, number] | null; strokes: [number, number][][]; drawing: boolean } | null = null
-  private trail: [number, number][] = []
+  // air drawing, in output pixels (set every frame while used)
+  private ink: { pointer: [number, number] | null; strokes: [number, number][][] } | null = null
 
   setLogo(bmp: ImageBitmap): void {
     this.logo = bmp
@@ -233,17 +232,11 @@ export class OverlayLayer {
     this.dirty = true
   }
 
-  /** Laser pointer and air drawing for this frame (output pixels). */
-  setInk(pointer: [number, number] | null, strokes: [number, number][][], drawing: boolean): void {
-    if (pointer && !drawing) {
-      this.trail.push(pointer)
-      if (this.trail.length > 10) this.trail.shift()
-    } else if (this.trail.length) {
-      this.trail.shift() // let the trail fade out
-    }
-    const active = !!pointer || strokes.length > 0 || this.trail.length > 0
+  /** Air drawing for this frame (output pixels): the strokes and the pen position. */
+  setInk(pointer: [number, number] | null, strokes: [number, number][][]): void {
+    const active = !!pointer || strokes.length > 0
     if (active || this.ink) this.dirty = true
-    this.ink = active ? { pointer, strokes, drawing } : null
+    this.ink = active ? { pointer, strokes } : null
   }
 
   /** Advances animations; returns true when the texture must be re-uploaded. */
@@ -422,39 +415,16 @@ export class OverlayLayer {
         ctx.stroke()
       }
     }
-    // laser: fading trail + glowing red dot
-    this.trail.forEach(([x, y], i) => {
-      const k = (i + 1) / this.trail.length
-      ctx.fillStyle = `rgba(255,40,40,${0.35 * k})`
-      ctx.beginPath()
-      ctx.arc(x, y, 6 * s * k, 0, Math.PI * 2)
-      ctx.fill()
-    })
+    // pen cursor
     if (ink.pointer) {
       const [x, y] = ink.pointer
-      if (ink.drawing) {
-        // pen cursor
-        ctx.strokeStyle = '#fff'
-        ctx.lineWidth = 2.5 * s
-        ctx.fillStyle = ORANGE
-        ctx.beginPath()
-        ctx.arc(x, y, 8 * s, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-      } else {
-        const g = ctx.createRadialGradient(x, y, 0, x, y, 26 * s)
-        g.addColorStop(0, 'rgba(255,60,60,0.9)')
-        g.addColorStop(0.35, 'rgba(255,30,30,0.35)')
-        g.addColorStop(1, 'rgba(255,0,0,0)')
-        ctx.fillStyle = g
-        ctx.beginPath()
-        ctx.arc(x, y, 26 * s, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = '#fff'
-        ctx.beginPath()
-        ctx.arc(x, y, 4 * s, 0, Math.PI * 2)
-        ctx.fill()
-      }
+      ctx.strokeStyle = '#fff'
+      ctx.lineWidth = 2.5 * s
+      ctx.fillStyle = ORANGE
+      ctx.beginPath()
+      ctx.arc(x, y, 8 * s, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
     }
     ctx.restore()
   }
