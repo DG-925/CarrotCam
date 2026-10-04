@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -8,6 +10,7 @@ import '../services/discovery.dart';
 import '../services/link.dart';
 import '../services/protocol.dart';
 import '../services/settings.dart';
+import '../services/system.dart';
 import '../theme.dart';
 import 'camera_screen.dart';
 import 'scan_screen.dart';
@@ -22,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _autoTried = false;
+  bool _usbAutoTried = false;
 
   @override
   void initState() {
@@ -44,16 +48,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (s == AppLifecycleState.resumed) discovery.start();
   }
 
-  /// Reconnect automatically to the PC used last time when it shows up.
+  /// Reconnect automatically to the PC used last time when it shows up, and
+  /// to any paired PC as soon as the phone is plugged into it by USB.
   void _maybeAutoConnect() {
-    if (_autoTried || !settings.autoConnect || !mounted) return;
+    if (!discovery.usbActive) _usbAutoTried = false;
+    // never start a second connection while one is being set up or running
+    if (_busy || !settings.autoConnect || !mounted || (link.state != LinkState.idle && link.state != LinkState.error)) return;
+    if (!_usbAutoTried) {
+      final usbPc = discovery.pcs.where((p) => p.usb && (settings.pcs[p.id]?.token.isNotEmpty ?? false)).firstOrNull;
+      if (usbPc != null) {
+        _usbAutoTried = true;
+        _autoTried = true;
+        final known = settings.pcs[usbPc.id]!;
+        _connect(ConnectTarget(
+          hosts: discovery.orderHosts([usbPc.host, ...known.hosts]),
+          port: usbPc.port,
+          name: known.name,
+          id: known.id,
+          token: known.token,
+        ));
+        return;
+      }
+    }
+    if (_autoTried) return;
     final last = settings.lastPc;
     if (last == null) return;
     final found = discovery.pcs.where((p) => p.id == last.id).firstOrNull;
     if (found == null) return;
     _autoTried = true;
     _connect(ConnectTarget(
-      hosts: {found.host, ...last.hosts}.toList(),
+      hosts: discovery.orderHosts([found.host, ...last.hosts]),
       port: found.port,
       name: last.name,
       id: last.id,
@@ -79,13 +103,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// True from the moment a connection is requested until its camera screen
+  /// closes, so discovery events can't start a second one in parallel.
+  bool _busy = false;
+
   Future<void> _connect(ConnectTarget target) async {
-    if (!await _ensureCamera()) return;
-    if (!mounted) return;
-    HapticFeedback.lightImpact();
-    link.connect(target);
-    await Navigator.of(context).push(smoothRoute(const CameraScreen()));
-    if (mounted) setState(() {});
+    if (_busy) return;
+    _busy = true;
+    try {
+      if (!await _ensureCamera()) return;
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      link.connect(target);
+      await Navigator.of(context).push(smoothRoute(const CameraScreen()));
+      if (mounted) setState(() {});
+    } finally {
+      _busy = false;
+    }
   }
 
   Future<void> _scan() async {
@@ -93,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (result == null) return;
     final known = settings.pcs[result.id];
     _connect(ConnectTarget(
-      hosts: result.hosts,
+      hosts: discovery.orderHosts(result.hosts),
       port: result.port,
       name: result.name,
       id: result.id,
@@ -105,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _tapPc(DiscoveredPc pc) async {
     final known = settings.pcs[pc.id];
     if (known != null && known.token.isNotEmpty) {
-      _connect(ConnectTarget(hosts: {pc.host, ...known.hosts}.toList(), port: pc.port, name: pc.name, id: pc.id, token: known.token));
+      _connect(ConnectTarget(hosts: discovery.orderHosts([pc.host, ...known.hosts]), port: pc.port, name: pc.name, id: pc.id, token: known.token));
       return;
     }
     final code = await _askCode(pc.name);
@@ -126,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             Text('Pair with $name', style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
-            Text('Enter the 6-digit code shown on the PC under Phones.', style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
+            Text('Enter the 6-digit code shown on the PC (camera menu → Phones).', style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
             const SizedBox(height: 18),
             TextField(
               controller: ctrl,
@@ -227,6 +261,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             const _UpdateBanner(),
             _Hero(onScan: _scan, onManual: _manual),
+            const SizedBox(height: 16),
+            const _UsbCard(),
             const SizedBox(height: 28),
             ListenableBuilder(
               listenable: Listenable.merge([discovery, settings]),
@@ -253,7 +289,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       for (final (i, pc) in found.indexed)
                         _PcTile(
                           name: pc.name,
-                          subtitle: '${pc.host}${settings.pcs.containsKey(pc.id) ? ' · Paired' : ''}',
+                          subtitle: '${pc.usb ? 'USB cable' : pc.host}${settings.pcs.containsKey(pc.id) ? ' · Paired' : ''}',
+                          usb: pc.usb,
                           paired: settings.pcs.containsKey(pc.id),
                           online: true,
                           onTap: () => _tapPc(pc),
@@ -329,7 +366,7 @@ class _Hero extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Open CarrotCam on your PC, then scan the QR code on its Phones page.',
+            'Open CarrotCam on your PC, then scan its QR code — or plug your phone in with a USB cable.',
             style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14.5, height: 1.35),
           ),
           const SizedBox(height: 20),
@@ -356,11 +393,20 @@ class _Hero extends StatelessWidget {
 }
 
 class _PcTile extends StatelessWidget {
-  const _PcTile({required this.name, required this.subtitle, required this.paired, required this.online, required this.onTap, this.onLongPress});
+  const _PcTile({
+    required this.name,
+    required this.subtitle,
+    required this.paired,
+    required this.online,
+    required this.onTap,
+    this.onLongPress,
+    this.usb = false,
+  });
   final String name;
   final String subtitle;
   final bool paired;
   final bool online;
+  final bool usb;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -381,7 +427,7 @@ class _PcTile extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(color: CC.orange.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(15)),
-                child: const Icon(Icons.desktop_windows_rounded, color: CC.orange),
+                child: Icon(usb ? Icons.usb_rounded : Icons.desktop_windows_rounded, color: CC.orange),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -409,6 +455,88 @@ class _PcTile extends StatelessWidget {
   }
 }
 
+/// Connect over a USB cable: Android USB tethering / iPhone Personal Hotspot
+/// turn the cable into a tiny private network between the phone and the PC.
+class _UsbCard extends StatelessWidget {
+  const _UsbCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: discovery,
+      builder: (context, _) {
+        final on = discovery.usbActive;
+        final pc = discovery.pcs.where((p) => p.usb).firstOrNull;
+        final android = Platform.isAndroid;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: CC.orange.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(14)),
+                  child: const Icon(Icons.usb_rounded, color: CC.orange),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('USB cable', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(
+                      pc != null
+                          ? 'Connected to ${pc.name} by cable'
+                          : on
+                              ? 'Cable ready — open CarrotCam on your PC'
+                              : 'Steadiest picture, no Wi-Fi needed',
+                      style: TextStyle(color: scheme.outline, fontSize: 13),
+                    ),
+                  ]),
+                ),
+                if (on)
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: const BoxDecoration(color: CC.green, shape: BoxShape.circle),
+                  ),
+              ]),
+              if (!on) ...[
+                const SizedBox(height: 12),
+                Text(
+                  android
+                      ? '1. Plug your phone into the PC.\n2. Turn on USB tethering.\n3. Your PC shows up here — tap it.'
+                      : '1. Plug your iPhone into the PC.\n2. Turn on Personal Hotspot (Settings).\n3. Your PC shows up here — tap it.',
+                  style: TextStyle(color: scheme.outline, height: 1.45, fontSize: 13),
+                ),
+                if (android) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () async {
+                        final ok = await openTetherSettings();
+                        if (!ok && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                            content: Text('Open Settings → Network → Hotspot & tethering → USB tethering.'),
+                          ));
+                        }
+                      },
+                      icon: const Icon(Icons.settings_ethernet_rounded),
+                      label: const Text('Turn on USB tethering'),
+                    ),
+                  ),
+                ],
+              ],
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _EmptyHint extends StatelessWidget {
   const _EmptyHint({required this.scheme});
   final ColorScheme scheme;
@@ -427,7 +555,7 @@ class _EmptyHint extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: Text(
-              'Looking for PCs on your Wi-Fi…\nMake sure CarrotCam is open on your computer.',
+              'Looking for PCs on your Wi-Fi or USB cable…\nMake sure CarrotCam is open on your computer.',
               style: TextStyle(color: scheme.outline, height: 1.4),
             ),
           ),

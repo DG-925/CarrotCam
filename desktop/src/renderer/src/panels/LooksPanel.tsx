@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { Briefcase, Film, Flashlight, Gamepad2, Leaf, Moon, Plus, Sparkles, Star, Trash2, Tv, Wand } from 'lucide-react'
+import { Briefcase, Film, Flashlight, Gamepad2, Leaf, Moon, Plus, ScanFace, Sparkles, Star, Trash2, Tv, Wand } from 'lucide-react'
 import { cloneEffects, defaultEffects } from '@shared/effects'
 import { BUILT_IN_PRESETS } from '@/lib/presets'
 import { useStore } from '@/lib/store'
@@ -16,7 +16,8 @@ const ICONS: Record<string, typeof Leaf> = {
   briefcase: Briefcase,
   tv: Tv,
   moon: Moon,
-  star: Star
+  star: Star,
+  scan: ScanFace
 }
 
 export function LooksPanel(): React.JSX.Element {

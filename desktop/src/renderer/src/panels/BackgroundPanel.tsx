@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { Ban, Droplet, ImagePlus, Lamp, Palette, Sparkle, Contrast } from 'lucide-react'
+import { Ban, Droplet, ImagePlus, Lamp, Palette, Sparkle, Contrast, X } from 'lucide-react'
 import type { BackgroundMode } from '@shared/effects'
 import { BUILT_IN_BACKGROUNDS } from '@/lib/backgrounds'
-import { selectStoredBackground, setBackgroundImage, userBackgrounds } from '@/lib/controller'
+import { deleteUserBackground, selectStoredBackground, setBackgroundImage, userBackgrounds } from '@/lib/controller'
 import { useStore } from '@/lib/store'
 import { Section, Slider, stagger } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
@@ -82,13 +82,21 @@ export function BackgroundPanel(): React.JSX.Element {
               />
             ))}
             {mine.map((b, i) => (
-              <motion.button
-                key={b.id}
-                {...stagger(i + BUILT_IN_BACKGROUNDS.length)}
-                className={`bg-tile ${bg.mode === 'image' && bg.imageId === b.id ? 'active' : ''}`}
-                style={{ backgroundImage: `url(${b.url})` }}
-                onClick={() => void selectStoredBackground(b.id)}
-              />
+              <motion.div key={b.id} {...stagger(i + BUILT_IN_BACKGROUNDS.length)} className="bg-tile-wrap">
+                <button
+                  className={`bg-tile ${bg.mode === 'image' && bg.imageId === b.id ? 'active' : ''}`}
+                  style={{ backgroundImage: `url(${b.url})` }}
+                  onClick={() => void selectStoredBackground(b.id)}
+                  title="Use this background"
+                />
+                <button
+                  className="bg-delete"
+                  title="Delete this background"
+                  onClick={() => void deleteUserBackground(b.id).then(() => setMine((m) => m.filter((x) => x.id !== b.id)))}
+                >
+                  <X size={13} />
+                </button>
+              </motion.div>
             ))}
             <button className="bg-tile add" onClick={() => file.current?.click()} title="Add your own image">
               <ImagePlus size={20} />

@@ -184,13 +184,6 @@ export function SettingsPage(): React.JSX.Element {
     toast(d.installed ? { kind: 'success', title: 'Virtual camera installed' } : { kind: 'error', title: 'Install failed', body: d.error })
   }
 
-  const remove = async (): Promise<void> => {
-    await updateApp({ vcamEnabled: false })
-    const d = await invoke<DriverStatus>(IPC.driverUninstall)
-    useStore.setState({ driver: d })
-    toast({ kind: 'info', title: 'Virtual camera removed' })
-  }
-
   return (
     <div className="page-inner">
       <motion.div className="page-head" {...fadeUp}>
@@ -211,30 +204,18 @@ export function SettingsPage(): React.JSX.Element {
           <h2>
             <Camera size={18} /> Virtual camera
           </h2>
-          <ToggleRow
-            title="CarrotCam camera"
-            hint="Shows up in Discord, Zoom, Teams, Meet, OBS and browsers"
-            value={app.vcamEnabled}
-            onChange={(v) => void updateApp({ vcamEnabled: v })}
-          />
           <div className="row">
             <div className="label">
-              <b>Driver</b>
+              <b>CarrotCam camera is always on</b>
               <small>
-                {driver?.installed ? (driver.upToDate ? 'Installed and up to date' : 'Installed (update available)') : 'Not installed'}
-                {vcam.inUse ? ' · in use right now' : ''}
+                {driver?.installed
+                  ? 'Installed automatically. Pick “CarrotCam” in Discord, Zoom, Teams, Meet, OBS or your browser.'
+                  : 'Installing…'}
               </small>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn sm" disabled={busy} onClick={() => void repair()}>
-                {busy ? <Loader2 size={14} className="spin" /> : <Wrench size={14} />} {driver?.installed ? 'Repair' : 'Install'}
-              </button>
-              {driver?.installed && (
-                <button className="btn ghost sm danger" onClick={() => void remove()}>
-                  Remove
-                </button>
-              )}
-            </div>
+            <button className="btn sm" disabled={busy} onClick={() => void repair()} title="Re-install the camera driver">
+              {busy ? <Loader2 size={14} className="spin" /> : <Wrench size={14} />} Repair
+            </button>
           </div>
           {vcam.error && <p className="hint" style={{ color: 'var(--danger)' }}>{vcam.error}</p>}
           <div style={{ marginTop: 12 }}>
@@ -328,8 +309,7 @@ export function SettingsPage(): React.JSX.Element {
             ['Privacy blur', 'Ctrl + Alt + P'],
             ['Be right back', 'Ctrl + Alt + B'],
             ['Freeze frame', 'Ctrl + Alt + F'],
-            ['Snapshot', 'Ctrl + Alt + S'],
-            ['Virtual camera on/off', 'Ctrl + Alt + V']
+            ['Snapshot', 'Ctrl + Alt + S']
           ].map(([a, k]) => (
             <div className="row" key={a}>
               <span>{a}</span>

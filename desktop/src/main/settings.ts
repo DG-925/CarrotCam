@@ -20,10 +20,18 @@ class SettingsStore extends EventEmitter {
           output: { ...defaultAppSettings.output, ...saved.output },
           stream: { ...defaultAppSettings.stream, ...saved.stream }
         }
+        // v2: the old settings screen made it easy to pick heavy phone
+        // encoder settings (VP8/60 fps/40 Mbps); reset to smooth defaults once.
+        if ((saved.settingsVersion ?? 1) < 2) {
+          this.data.stream = { ...defaultAppSettings.stream }
+          this.data.settingsVersion = 2
+        }
       }
     } catch {
       this.data = structuredClone(defaultAppSettings)
     }
+    // the virtual camera is always on
+    this.data.vcamEnabled = true
     return this.data
   }
 

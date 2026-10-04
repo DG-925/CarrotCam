@@ -21,8 +21,6 @@ export function Preview(): React.JSX.Element {
   const box = useRef<HTMLDivElement>(null)
   const effects = useStore((s) => s.effects)
   const updateEffects = useStore((s) => s.updateEffects)
-  const stats = useStore((s) => s.stats)
-  const vcam = useStore((s) => s.vcam)
   const source = useStore((s) => s.source)
   const recording = useStore((s) => s.recording)
   const compare = useStore((s) => s.compare)
@@ -87,10 +85,10 @@ export function Preview(): React.JSX.Element {
   }
 
   const live = source.state === 'live'
-  const vcamLabel = !vcam.running ? 'Virtual camera off' : vcam.inUse ? 'Live in an app' : 'Virtual camera ready'
 
   return (
     <div className="preview-wrap">
+      <div className="preview-area">
       <div
         ref={box}
         className={`preview ${live ? 'live' : ''}`}
@@ -110,10 +108,6 @@ export function Preview(): React.JSX.Element {
         <div className="preview-hud">
           <div className="hud-row">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <span className="chip" title={vcam.error ?? undefined}>
-                <span className={`dot ${vcam.running ? 'on' : ''}`} />
-                {vcamLabel}
-              </span>
               <AnimatePresence>
                 {recording.active && (
                   <motion.span className="chip" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
@@ -127,12 +121,6 @@ export function Preview(): React.JSX.Element {
                 )}
               </AnimatePresence>
             </div>
-            {stats && (
-              <span className="chip mono">
-                {stats.inW > 0 && live ? `${stats.inW}×${stats.inH} → ` : ''}
-                {stats.outW}×{stats.outH} · {stats.fps} fps
-              </span>
-            )}
           </div>
 
           {compare && (
@@ -151,36 +139,37 @@ export function Preview(): React.JSX.Element {
             </>
           )}
 
-          <div className="toolbar" onDoubleClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-            <button className={`tool ${compare ? 'on' : ''}`} onClick={() => set({ compare: !compare })}>
-              <Columns2 size={19} />
-              <span className="tooltip">Before / after</span>
-            </button>
-            <button
-              className={`tool ${effects.framing.mirror ? 'on' : ''}`}
-              onClick={() => updateEffects((e) => void (e.framing.mirror = !e.framing.mirror))}
-            >
-              <FlipHorizontal2 size={19} />
-              <span className="tooltip">Mirror</span>
-            </button>
-            <button
-              className="tool"
-              onClick={() =>
-                updateEffects((e) => void (e.framing.rotate = (((e.framing.rotate + 90) % 360) as 0 | 90 | 180 | 270)))
-              }
-            >
-              <RotateCw size={18} />
-              <span className="tooltip">Rotate{effects.framing.rotate ? ` (${effects.framing.rotate}°)` : ''}</span>
-            </button>
-            <button
-              className="tool"
-              onClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void box.current?.requestFullscreen())}
-            >
-              <Maximize2 size={18} />
-              <span className="tooltip">Full screen</span>
-            </button>
-          </div>
         </div>
+      </div>
+      </div>
+      <div className="preview-toolbar">
+        <button className={`tool ${compare ? 'on' : ''}`} onClick={() => set({ compare: !compare })}>
+          <Columns2 size={19} />
+          <span className="tooltip">Before / after</span>
+        </button>
+        <button
+          className={`tool ${effects.framing.mirror ? 'on' : ''}`}
+          onClick={() => updateEffects((e) => void (e.framing.mirror = !e.framing.mirror))}
+        >
+          <FlipHorizontal2 size={19} />
+          <span className="tooltip">Mirror</span>
+        </button>
+        <button
+          className="tool"
+          onClick={() =>
+            updateEffects((e) => void (e.framing.rotate = (((e.framing.rotate + 90) % 360) as 0 | 90 | 180 | 270)))
+          }
+        >
+          <RotateCw size={18} />
+          <span className="tooltip">Rotate{effects.framing.rotate ? ` (${effects.framing.rotate}°)` : ''}</span>
+        </button>
+        <button
+          className="tool"
+          onClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void box.current?.requestFullscreen())}
+        >
+          <Maximize2 size={18} />
+          <span className="tooltip">Full screen</span>
+        </button>
       </div>
     </div>
   )

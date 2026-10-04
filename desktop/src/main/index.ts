@@ -193,17 +193,10 @@ function trayAction(action: TrayAction): void {
 
 function refreshTray(): void {
   if (!tray) return
-  const s = settings.get()
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open CarrotCam', click: () => showWindow() },
       { type: 'separator' },
-      {
-        label: 'Virtual camera',
-        type: 'checkbox',
-        checked: s.vcamEnabled,
-        click: () => trayAction('toggle-vcam')
-      },
       {
         label: 'Privacy',
         submenu: [
@@ -231,8 +224,7 @@ function registerShortcuts(): void {
     'CommandOrControl+Alt+P': 'privacy-blur',
     'CommandOrControl+Alt+B': 'privacy-brb',
     'CommandOrControl+Alt+F': 'privacy-freeze',
-    'CommandOrControl+Alt+S': 'snapshot',
-    'CommandOrControl+Alt+V': 'toggle-vcam'
+    'CommandOrControl+Alt+S': 'snapshot'
   }
   for (const [accel, action] of Object.entries(shortcuts)) {
     try {
@@ -275,7 +267,7 @@ function registerIpc(): void {
     }
     if (patch.autoUpdate !== undefined) setAutoDownload(next.autoUpdate)
     if (patch.output) void writeDriverFormat(next.output)
-    if (patch.vcamEnabled !== undefined || patch.theme !== undefined) refreshTray()
+    if (patch.theme !== undefined) refreshTray()
     if (patch.theme && patch.theme !== prev.theme) nativeTheme.themeSource = next.theme
     return next
   })
@@ -354,11 +346,9 @@ async function bootstrap(): Promise<void> {
 
   if (process.platform === 'win32') {
     void writeDriverFormat(s.output)
-    if (s.vcamEnabled) {
-      ensureDriver()
-        .then((status) => log.info('[driver] status', status))
-        .catch((err) => log.error('[driver] ensure failed', err))
-    }
+    ensureDriver()
+      .then((status) => log.info('[driver] status', status))
+      .catch((err) => log.error('[driver] ensure failed', err))
   }
 
   initUpdater((state) => send(IPC.evUpdate, state), s.autoUpdate)

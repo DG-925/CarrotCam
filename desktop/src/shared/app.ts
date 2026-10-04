@@ -28,6 +28,7 @@ export interface AppSettings {
   recordAudio: boolean
   lastSource: string | null
   welcomed: boolean
+  settingsVersion: number
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -42,7 +43,8 @@ export const defaultAppSettings: AppSettings = {
   stream: { resolution: '720p', fps: 30, bitrate: 8000, lowLatency: true, codec: 'h264' },
   recordAudio: true,
   lastSource: null,
-  welcomed: false
+  welcomed: false,
+  settingsVersion: 2
 }
 
 export interface DriverStatus {

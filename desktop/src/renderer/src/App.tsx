@@ -120,7 +120,6 @@ const WELCOME: { icon: 'logo' | typeof Smartphone; title: string; body: string }
 function Welcome(): React.JSX.Element | null {
   const welcomed = useStore((s) => s.app.welcomed)
   const ready = useStore((s) => s.ready)
-  const setPage = useStore((s) => s.setPage)
   const [step, setStep] = useState(0)
   if (!ready || welcomed) return null
   const s = WELCOME[step]
@@ -165,7 +164,7 @@ function Welcome(): React.JSX.Element | null {
               onClick={() => {
                 if (last) {
                   void updateApp({ welcomed: true })
-                  setPage('devices')
+                  useStore.getState().set({ phonesOpen: true })
                 } else setStep(step + 1)
               }}
             >
@@ -175,6 +174,44 @@ function Welcome(): React.JSX.Element | null {
         </div>
       </motion.div>
     </motion.div>
+  )
+}
+
+function PhonesModal(): React.JSX.Element {
+  const open = useStore((s) => s.phonesOpen)
+  const set = useStore((s) => s.set)
+  const close = (): void => set({ phonesOpen: false })
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onPointerDown={(e) => e.target === e.currentTarget && close()}
+        >
+          <motion.div
+            className="phones-modal"
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+          >
+            <DevicesPage onClose={close} />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 
@@ -203,8 +240,7 @@ export default function App(): React.JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return
       if (e.ctrlKey && e.key === '1') useStore.getState().setPage('studio')
-      if (e.ctrlKey && e.key === '2') useStore.getState().setPage('devices')
-      if (e.ctrlKey && e.key === '3') useStore.getState().setPage('settings')
+      if (e.ctrlKey && e.key === '2') useStore.getState().setPage('settings')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -228,11 +264,12 @@ export default function App(): React.JSX.Element {
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               style={{ overflow: page === 'studio' ? 'hidden' : 'auto' }}
             >
-              {page === 'studio' ? <Studio /> : page === 'devices' ? <DevicesPage /> : <SettingsPage />}
+              {page === 'studio' ? <Studio /> : <SettingsPage />}
             </motion.div>
           </AnimatePresence>
         </main>
       </div>
+      <PhonesModal />
       <Toasts />
       <AnimatePresence>
         <Welcome />

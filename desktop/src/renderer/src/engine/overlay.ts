@@ -85,7 +85,13 @@ export class OverlayLayer {
   private tagShownAt = 0
   private tagKey = ''
   private brbSince = 0
+  private logo: ImageBitmap | null = null
   hasContent = false
+
+  setLogo(bmp: ImageBitmap): void {
+    this.logo = bmp
+    this.dirty = true
+  }
 
   constructor(
     public w: number,
@@ -293,6 +299,21 @@ export class OverlayLayer {
       ctx.fillStyle = '#fff'
       ctx.textBaseline = 'middle'
       ctx.fillText(label, x + 38 * s, y + 22 * s)
+      content = true
+    }
+
+    const wm = o.watermark
+    if (wm?.enabled && this.logo && this.privacy !== 'brb') {
+      const size = 66 * s
+      const m = 26 * s
+      const x = wm.corner.endsWith('l') ? m : w - m - size
+      const y = wm.corner.startsWith('t') ? m : h - m - size
+      ctx.save()
+      ctx.globalAlpha = Math.min(1, Math.max(0.1, wm.opacity / 100))
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'
+      ctx.shadowBlur = 10 * s
+      ctx.drawImage(this.logo, x, y, size, size)
+      ctx.restore()
       content = true
     }
 

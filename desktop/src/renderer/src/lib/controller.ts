@@ -35,12 +35,10 @@ function applyTheme(): void {
 
 // ---- settings -----------------------------------------------------------------------
 export async function updateApp(patch: Partial<AppSettings>): Promise<void> {
-  const prev = st().app
   const next = await invoke<AppSettings>(IPC.settingsSet, patch)
   useStore.setState({ app: next })
   if (patch.theme) applyTheme()
   if (patch.output) engine.setOutput(next.output.width, next.output.height, next.output.fps)
-  if (patch.vcamEnabled !== undefined && patch.vcamEnabled !== prev.vcamEnabled) await setVcam(next.vcamEnabled)
 }
 
 // ---- virtual camera -----------------------------------------------------------------
@@ -63,11 +61,6 @@ async function setVcam(enabled: boolean): Promise<void> {
     }
   })
   pushRemoteState()
-}
-
-export async function toggleVcam(): Promise<void> {
-  await updateApp({ vcamEnabled: !st().app.vcamEnabled })
-  toast({ kind: 'info', title: st().app.vcamEnabled ? 'Virtual camera on' : 'Virtual camera off' })
 }
 
 // ---- sources ------------------------------------------------------------------------
@@ -203,7 +196,8 @@ function onDevices(devices: ConnectedDevice[]): void {
   // auto select a newly connected phone when it is the one we were using
   // (reconnect), when nothing is live, or when the current source failed
   const src = st().source
-  const fresh = devices.filter((d) => !prev.some((p) => p.id === d.id))
+  // a phone that reconnected (new session, same id) needs a new stream
+  const fresh = devices.filter((d) => !prev.some((p) => p.id === d.id && p.connectedAt === d.connectedAt))
   const pick =
     fresh.find((d) => src.id === `phone:${d.id}`) ??
     (src.state !== 'live' && src.state !== 'connecting' ? fresh.find((d) => app.lastSource === `phone:${d.id}`) ?? fresh[0] : undefined)
@@ -287,9 +281,6 @@ async function onRemote(deviceId: string, action: string, value: unknown): Promi
     case 'record':
       await toggleRecording()
       break
-    case 'vcam':
-      await toggleVcam()
-      break
     case 'preset': {
       const p = BUILT_IN_PRESETS.find((x) => x.id === value)
       if (p) st().replaceEffects(p.effects, p.id)
@@ -299,10 +290,10 @@ async function onRemote(deviceId: string, action: string, value: unknown): Promi
 }
 
 function remoteState(): RemoteState {
-  const { effects: e, app, recording } = st()
+  const { effects: e, recording } = st()
   return {
     active: false,
-    vcam: app.vcamEnabled,
+    vcam: true,
     filter: e.filter.id,
     background: e.background.mode,
     autoFrame: e.framing.autoFrame,
@@ -468,6 +459,20 @@ export async function userBackgrounds(): Promise<{ id: string; url: string }[]> 
   return out
 }
 
+/** Deletes a background the user added; falls back to no background if it was in use. */
+export async function deleteUserBackground(id: string): Promise<void> {
+  await idb.del(`bg:${id}`)
+  const list = ((await idb.get<string[]>('bg:list')) ?? []).filter((x) => x !== id)
+  await idb.set('bg:list', list)
+  if (st().effects.background.imageId === id) {
+    await engine.setBackgroundImage(null)
+    st().updateEffects((e) => {
+      e.background.imageId = null
+      if (e.background.mode === 'image') e.background.mode = 'none'
+    })
+  }
+}
+
 export async function selectStoredBackground(id: string): Promise<void> {
   if (id.startsWith('bi:')) return setBackgroundImage({ builtIn: id })
   const blob = await idb.get<Blob>(`bg:${id}`)
@@ -509,9 +514,6 @@ function onShortcut(action: string): void {
       break
     case 'snapshot':
       void takeSnapshot()
-      break
-    case 'toggle-vcam':
-      void toggleVcam()
       break
   }
 }
@@ -564,7 +566,7 @@ export async function initController(): Promise<void> {
   navigator.mediaDevices.addEventListener('devicechange', () => void refreshCameras())
   await refreshCameras()
 
-  await setVcam(app.vcamEnabled)
+  await setVcam(true)
   setInterval(() => {
     const inUse = window.carrot.vcam.isConnected()
     if (inUse !== st().vcam.inUse) useStore.setState({ vcam: { ...st().vcam, inUse } })

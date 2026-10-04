@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Clock, Frame, Hand, IdCard, Radio } from 'lucide-react'
+import { ArrowDownLeft, ArrowDownRight, ArrowUpLeft, ArrowUpRight, Clock, Frame, Hand, IdCard, Radio } from 'lucide-react'
 import type { NameTagStyle } from '@shared/effects'
 import { Section, Segmented, Slider, ToggleRow } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
@@ -78,6 +78,40 @@ export function OverlaysPanel(): React.JSX.Element {
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+      </Section>
+
+      <Section title="Logo watermark">
+        <div className="card">
+          <ToggleRow
+            title="Show the CarrotCam logo"
+            hint="A small carrot in the corner of your video"
+            icon={<img src="logo.png" width={20} height={20} alt="" />}
+            value={o.watermark.enabled}
+            onChange={(v) => update((e) => void (e.overlay.watermark.enabled = v))}
+          />
+          {o.watermark.enabled && (
+            <div style={{ display: 'grid', gap: 8, paddingTop: 8 }}>
+              <Segmented<'tl' | 'tr' | 'bl' | 'br'>
+                value={o.watermark.corner}
+                onChange={(v) => update((e) => void (e.overlay.watermark.corner = v))}
+                options={[
+                  { value: 'tl', label: <ArrowUpLeft size={16} aria-label="Top left" /> },
+                  { value: 'tr', label: <ArrowUpRight size={16} aria-label="Top right" /> },
+                  { value: 'bl', label: <ArrowDownLeft size={16} aria-label="Bottom left" /> },
+                  { value: 'br', label: <ArrowDownRight size={16} aria-label="Bottom right" /> }
+                ]}
+              />
+              <Slider
+                label="Opacity"
+                value={o.watermark.opacity}
+                min={10}
+                max={100}
+                defaultValue={85}
+                onChange={(v) => update((e) => void (e.overlay.watermark.opacity = v))}
+              />
+            </div>
+          )}
         </div>
       </Section>
 

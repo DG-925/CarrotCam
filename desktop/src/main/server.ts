@@ -43,6 +43,7 @@ export function lanAddresses(): string[] {
       if (/^Ethernet/i.test(name)) score += 2
       if (ni.address.startsWith('192.168.')) score += 2
       if (ni.address.startsWith('169.254.')) score -= 8
+      if (/^(192\.168\.(42|44|98)\.|172\.20\.10\.|10\.42\.)/.test(ni.address) || /(NDIS|USB|iPhone|Apple)/i.test(name)) score += 20
       result.push({ address: ni.address, score })
     }
   }
@@ -332,7 +333,8 @@ export class PhoneServer extends EventEmitter {
           name: String(hello.info.name ?? 'Phone').slice(0, 64),
           model: String(hello.info.model ?? '').slice(0, 64),
           platform: String(hello.info.platform ?? '').slice(0, 16),
-          app: String(hello.info.app ?? '').slice(0, 16)
+          app: String(hello.info.app ?? '').slice(0, 16),
+          transport: hello.info.transport === 'usb' ? 'usb' : 'wifi'
         },
         address,
         connectedAt: Date.now()

@@ -1,7 +1,7 @@
 # Builds every CarrotCam app and publishes one GitHub Release.
 # Trigger: push a tag like `v1.2.0` (git tag v1.2.0 && git push origin v1.2.0).
-# The desktop app (electron-updater) and the Android app (in-app updater)
-# both update themselves from these releases.
+# Assets: Windows installer (.exe), portable Windows .zip, Android .apk and
+# latest.yml (read by installed desktop apps to auto-update).
 name: Release
 
 on:
@@ -70,7 +70,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $files = @(Get-ChildItem -File | Where-Object { $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml' } | ForEach-Object { $_.Name })
+          # installer + portable zip; latest.yml is what installed apps read to auto-update
+          $files = @(Get-ChildItem -File | Where-Object { $_.Name -match '\.(exe|zip)$' -or $_.Name -eq 'latest.yml' } | ForEach-Object { $_.Name })
           gh release upload $env:TAG @files --clobber
 
   android:
@@ -115,27 +116,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$TAG" "CarrotCam-${TAG#v}.apk" --clobber
-
-  ios:
-    needs: create-release
-    runs-on: macos-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Build unsigned IPA (for sideloading with AltStore/Sideloadly)
-        working-directory: mobile
-        run: |
-          flutter pub get
-          flutter build ios --release --no-codesign --build-name "${TAG#v}" --build-number "${{ github.run_number }}"
-          mkdir -p Payload
-          cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -qr "CarrotCam-${TAG#v}-unsigned.ipa" Payload
-      - name: Upload to release
-        working-directory: mobile
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$TAG" "CarrotCam-${TAG#v}-unsigned.ipa" --clobber

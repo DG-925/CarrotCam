@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { FileUp, X } from 'lucide-react'
+import { FileUp, Search, X } from 'lucide-react'
 import { LOOKS } from '@/engine/looks'
 import { engine, importLut } from '@/lib/controller'
 import { idb } from '@/lib/idb'
@@ -11,6 +11,12 @@ export function FiltersPanel(): React.JSX.Element {
   const [fx, update] = useFx()
   const canvases = useRef(new Map<string, HTMLCanvasElement>())
   const file = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return LOOKS
+    return LOOKS.filter((l) => `${l.name} ${l.tags ?? ''}`.toLowerCase().includes(q))
+  }, [query])
 
   // live filter thumbnails rendered by the GPU engine
   useEffect(() => {
@@ -24,12 +30,16 @@ export function FiltersPanel(): React.JSX.Element {
       })
       bitmap.close()
     }
-    engine.requestThumbs(LOOKS.map((l) => l.id))
     return () => {
       engine.requestThumbs([])
       engine.events.thumbs = prev
     }
   }, [])
+
+  // only render previews for the filters that are visible
+  useEffect(() => {
+    engine.requestThumbs(shown.map((l) => l.id))
+  }, [shown])
 
   return (
     <>
@@ -42,11 +52,25 @@ export function FiltersPanel(): React.JSX.Element {
           onChange={(v) => update((e) => void (e.filter.intensity = v))}
         />
       </Section>
+      <div className="search-box">
+        <Search size={16} />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Search ${LOOKS.length} filters (warm, film, black and white…)`}
+        />
+        {query && (
+          <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setQuery('')} title="Clear">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      {shown.length === 0 && <p className="hint" style={{ margin: '4px 2px 18px' }}>No filters match “{query}”.</p>}
       <div className="grid-2" style={{ marginBottom: 22 }}>
-        {LOOKS.map((l, i) => (
+        {shown.map((l, i) => (
           <motion.button
             key={l.id}
-            {...stagger(i)}
+            {...stagger(Math.min(i, 12))}
             className={`filter-tile ${fx.filter.id === l.id ? 'active' : ''}`}
             onClick={() => update((e) => void (e.filter.id = l.id))}
           >

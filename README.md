@@ -20,20 +20,21 @@
 
 **Camera & connection**
 - Phone → PC over **WebRTC** on your LAN (hardware H.264/VP8/VP9, up to 4K / 60 fps, adjustable bitrate, low-latency mode)
+- Connect over **Wi-Fi or a USB cable** (USB tethering / iPhone Personal Hotspot): steadier picture, phone charges while streaming
 - Pair by **QR code**, 6-digit code, **auto-discovery** (mDNS + UDP broadcast) or manual IP; paired phones **reconnect automatically**
 - Remote-control the phone from the PC: switch camera / lens, torch, zoom; tap-to-focus & pinch-zoom on the phone
 - Use any webcam plugged into the PC as a source too
-- **CarrotCam virtual camera** shows up in Discord, Zoom, Teams, Google Meet, OBS, Chrome, Edge… — even shows a branded card when the app is closed
+- **CarrotCam virtual camera** is always on and installs itself (no admin rights); it shows up in Discord, Zoom, Teams, Google Meet, OBS, Chrome, Edge… — even shows a branded card when the app is closed
 
 **Studio (all GPU, off the UI thread → stays smooth even when minimized)**
 - **Adjust:** exposure, brightness, contrast, highlights, shadows, temperature, tint, hue, saturation, vibrance, sharpness, vignette, grain, fade, **auto enhance**
-- **Filters:** 20 live-preview looks (Carrot, Cinematic, Film, Golden Hour, Noir…) + import your own **.cube LUTs**
+- **Filters:** 43 live-preview looks with search (Carrot, Cinematic, Film, Golden Hour, Noir…) + import your own **.cube LUTs**
 - **Backdrop:** background blur, virtual backgrounds (built-in or your images), studio backdrop, solid color / green screen, color pop
 - **Retouch:** smooth skin, face light, brighten eyes, whiten teeth, slim face, enlarge eyes
 - **Lighting:** face-tracking **spotlight**, studio subject light, directional key light, **night boost** with temporal denoise
-- **Framing:** **auto framing / center stage**, zoom, pan (drag & scroll on the preview), rotate, straighten, mirror, flip
+- **Framing:** **auto framing / center stage** (also as the one-tap "Follow me" look), zoom, pan (drag & scroll on the preview), rotate, straighten, mirror, flip
 - **Effects:** glitch, VHS, pixel, comic, sketch, halftone, thermal, night vision, poster, chromatic, twin
-- **Overlays:** animated name tag (lower third), clock, LIVE / ON AIR badge, rounded border, **reactions** (hearts, confetti, fireworks…) and **gesture reactions** (thumbs up, peace sign, rock on, point up, open palm)
+- **Overlays:** animated name tag (lower third), clock, LIVE / ON AIR badge, rounded border, **logo watermark**, **reactions** (hearts, confetti, fireworks…) and **gesture reactions** (thumbs up, peace sign, rock on, point up, open palm)
 - **Privacy:** blur everything, “Be right back” card, freeze frame — with global hotkeys
 - One-tap **Looks** presets + save your own
 - Snapshots (saved + copied to clipboard) and **recording** (MP4/WebM, optional mic)
@@ -41,9 +42,9 @@
 
 ## Using it
 
-1. Install **CarrotCam for Windows** from the [latest release](https://github.com/DG-925/CarrotCam/releases/latest) (`CarrotCam-Setup-x.y.z.exe`).
-2. Install the phone app: Android `CarrotCam-x.y.z.apk` from the same release (iOS: sideload the unsigned IPA with AltStore/Sideloadly).
-3. Put both on the same Wi-Fi, open **Devices** on the PC and scan the QR code with the phone.
+1. Install **CarrotCam for Windows** from the [latest release](https://github.com/DG-925/CarrotCam/releases/latest) (`CarrotCam-Setup-x.y.z.exe`, or unzip `CarrotCam-x.y.z-Windows-portable.zip`).
+2. Install the phone app: Android `CarrotCam-x.y.z.apk` from the same release.
+3. Put both on the same Wi-Fi (or plug the phone in and turn on USB tethering), open the camera menu → **Connect a phone** on the PC and scan the QR code.
 4. In Discord/Zoom/Meet/… pick **CarrotCam** as your camera.
 
 ### Global shortcuts
@@ -53,7 +54,6 @@
 | Be right back | `Ctrl` `Alt` `B` |
 | Freeze frame | `Ctrl` `Alt` `F` |
 | Snapshot | `Ctrl` `Alt` `S` |
-| Virtual camera on/off | `Ctrl` `Alt` `V` |
 
 ## Developing
 
@@ -84,7 +84,8 @@ flutter run           # or: flutter build apk --release
    ```bash
    git tag v1.1.0 && git push origin v1.1.0
    ```
-3. GitHub Actions builds the Windows installer, Android APK and iOS IPA and attaches them to the release.
+3. GitHub Actions builds the Windows installer, a portable Windows zip and the Android APK and attaches them to the release
+   (plus `latest.yml`, which installed desktop apps read to update themselves).
    The desktop app (electron-updater) and the Android app pick the update up automatically.
 
 ## How it works

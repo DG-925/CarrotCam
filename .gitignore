@@ -18,3 +18,7 @@ key.properties
 .DS_Store
 Thumbs.db
 *.log
+
+# vendored plugin build output
+mobile/third_party/flutter_webrtc/android/.gradle/
+mobile/third_party/flutter_webrtc/android/build/

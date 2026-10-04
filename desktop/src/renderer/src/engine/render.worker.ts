@@ -98,6 +98,7 @@ let compare = -1
 let snapshotPending = false
 let thumbIds: string[] | null = null
 let lastThumbsAt = 0
+let thumbCursor = 0
 
 let face: FaceData | null = null
 let faceAt = 0
@@ -187,7 +188,10 @@ function init(msg: Extract<ToRender, { t: 'init' }>): void {
   fetch(`${assetBase}logo.png`)
     .then((r) => r.blob())
     .then((b) => createImageBitmap(b))
-    .then((bmp) => (standby.logo = bmp))
+    .then((bmp) => {
+      standby.logo = bmp
+      overlay.setLogo(bmp)
+    })
     .catch(() => {})
   overlay.configure(effects.overlay, effects.privacy)
   allocateTargets()
@@ -668,7 +672,7 @@ function render(now: number): void {
     autoGain = [1, 1, 1]
   }
 
-  if (thumbIds && now - lastThumbsAt > 450) {
+  if (thumbIds && now - lastThumbsAt > 300) {
     lastThumbsAt = now
     renderThumbs(baseTex)
   }
@@ -901,7 +905,10 @@ function maybePostStats(now: number): void {
 
 function renderThumbs(baseTex: WebGLTexture): void {
   if (!thumbIds) return
-  const ids = thumbIds.slice(0, 24)
+  // the shader takes 24 looks per pass: rotate through longer lists
+  if (thumbCursor >= thumbIds.length) thumbCursor = 0
+  const ids = thumbIds.slice(thumbCursor, thumbCursor + 24)
+  thumbCursor += 24
   const cols = 4
   const rows = Math.ceil(ids.length / cols)
   const cw = 192
@@ -1014,6 +1021,7 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
       break
     case 'thumbs':
       thumbIds = msg.ids.length ? msg.ids : null
+      thumbCursor = 0
       lastThumbsAt = 0
       break
     case 'standbyText':

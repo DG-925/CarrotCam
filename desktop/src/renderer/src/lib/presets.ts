@@ -17,6 +17,12 @@ function make(id: string, name: string, icon: string, description: string, fn: (
 
 export const BUILT_IN_PRESETS: Preset[] = [
   make('natural', 'Natural', 'leaf', 'Just your camera', () => {}),
+  make('follow', 'Follow me', 'scan', 'Camera follows your face', (e) => {
+    e.framing.autoFrame = true
+    e.framing.tightness = 'medium'
+    e.framing.speed = 55
+    e.background = { ...e.background, mode: 'none' }
+  }),
   make('studio', 'Studio Glow', 'sparkles', 'Soft light, smooth skin', (e) => {
     e.filter = { id: 'portrait', intensity: 80 }
     e.retouch.smooth = 45
