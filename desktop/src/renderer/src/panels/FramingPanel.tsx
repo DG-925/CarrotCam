@@ -47,6 +47,10 @@ export function FramingPanel(): React.JSX.Element {
                     <b>Pinch with one hand</b>
                     <span>Drag to move the view (while zoomed)</span>
                   </div>
+                  <div>
+                    <b>Point (index finger)</b>
+                    <span>Laser pointer, or draw while drawing is on</span>
+                  </div>
                   {HAND_COMMANDS.map((c) => (
                     <div key={c.gesture}>
                       <b>{c.pose}</b>

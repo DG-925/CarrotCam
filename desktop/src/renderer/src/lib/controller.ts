@@ -49,8 +49,43 @@ function applyHandControl(enabled: boolean): void {
   engine.setHandControl(enabled)
   if (!enabled) {
     hands?.reset()
+    engine.setInk(null, false)
     useStore.setState({ handHint: null })
   }
+}
+
+/** Air drawing on/off (pointing draws instead of showing the laser). */
+export function toggleDrawing(): void {
+  const on = !st().inkMode
+  useStore.setState({ inkMode: on })
+  if (!on) clearDrawing() // drawing off also wipes the board
+  if (on && !st().app.handControl) void updateApp({ handControl: true })
+  toast(
+    on
+      ? { kind: 'info', title: 'Drawing on', body: 'Point with your index finger to draw. Hold an open palm to erase.' }
+      : { kind: 'info', title: 'Drawing off', body: 'The drawing was cleared.' }
+  )
+}
+
+export function clearDrawing(): void {
+  engine.clearInk()
+}
+
+/** Phone: front/back camera. Webcam: next webcam. */
+export function switchCamera(): void {
+  const src = st().source
+  if (src.kind === 'phone' && src.id) {
+    phoneCommand(src.id.slice(6), 'switchCamera')
+    toast({ kind: 'info', title: 'Switching phone camera' })
+    return
+  }
+  const cams = st().cameras
+  if (cams.length > 1) {
+    const i = cams.findIndex((c) => `cam:${c.id}` === src.id)
+    void selectSource(`cam:${cams[(i + 1) % cams.length].id}`)
+    return
+  }
+  toast({ kind: 'info', title: 'No other camera to switch to', body: 'Connect your phone to switch between its front and back camera.' })
 }
 
 export async function toggleHandControl(): Promise<void> {
@@ -76,6 +111,11 @@ function onHandCommand(c: HandCommand): void {
   const { effects, updateEffects } = st()
   switch (c) {
     case 'reset':
+      if (st().inkMode) {
+        clearDrawing()
+        toast({ kind: 'info', title: 'Drawing erased' })
+        break
+      }
       updateEffects((e) => {
         e.framing.zoom = 1
         e.framing.panX = 0
@@ -93,11 +133,11 @@ function onHandCommand(c: HandCommand): void {
     case 'prevFilter':
       cycleFilter(-1)
       break
-    case 'follow':
-      updateEffects((e) => {
-        e.framing.autoFrame = !e.framing.autoFrame
-      })
-      toast({ kind: 'info', title: effects.framing.autoFrame ? 'Follow me off' : 'Follow me on' })
+    case 'brb':
+      setPrivacy('brb')
+      break
+    case 'draw':
+      toggleDrawing()
       break
     case 'blur':
       updateEffects((e) => {
@@ -125,10 +165,12 @@ function createHandControl(): HandControl {
         e.framing.panY = v.panY
         e.framing.autoFrame = false // your hands are in charge now
       })
-      if (wasFollowing) toast({ kind: 'info', title: 'Follow me paused', body: 'Hand zoom took over. Hold a point-up gesture to turn it back on.' })
+      if (wasFollowing) toast({ kind: 'info', title: 'Follow me paused', body: 'Hand zoom took over. Turn it back on in Framing.' })
     },
     command: onHandCommand,
-    hint: (handHint) => useStore.setState({ handHint })
+    hint: (handHint) => useStore.setState({ handHint }),
+    pointer: (p) => engine.setInk(p, st().inkMode),
+    drawing: () => st().inkMode
   })
 }
 

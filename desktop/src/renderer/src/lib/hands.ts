@@ -2,13 +2,14 @@
 //
 //  - pinch (thumb + index) with both hands, pull apart / together -> zoom
 //  - pinch with one hand and drag (while zoomed)                  -> move the view
+//  - point with the index finger                                  -> laser pointer / draw
 //  - hold a gesture for a moment                                  -> command
 //
 // Hand positions arrive in source coordinates (not mirrored, not zoomed), so
 // moving the view never feeds back into the hand positions.
 import type { HandData } from '@/engine/types'
 
-export type HandCommand = 'reset' | 'snapshot' | 'nextFilter' | 'prevFilter' | 'follow' | 'blur' | 'hearts'
+export type HandCommand = 'reset' | 'snapshot' | 'nextFilter' | 'prevFilter' | 'brb' | 'blur' | 'hearts' | 'draw'
 
 export interface View {
   zoom: number
@@ -21,18 +22,46 @@ export interface HandActions {
   setView: (v: View) => void
   command: (c: HandCommand) => void
   hint: (text: string | null) => void
+  /** index fingertip (source uv) while pointing, else null */
+  pointer: (p: [number, number] | null) => void
+  drawing: () => boolean
 }
 
-/** Gestures you hold to run a command. */
+/**
+ * Gestures you hold to run a command. `gesture` is a MediaPipe category or one
+ * of our own poses worked out from the fingers: 'Three' and 'Heart'.
+ */
 export const HAND_COMMANDS: { gesture: string; pose: string; command: HandCommand; label: string }[] = [
-  { gesture: 'Open_Palm', pose: 'Open palm', command: 'reset', label: 'Reset zoom' },
+  { gesture: 'Open_Palm', pose: 'Open palm', command: 'reset', label: 'Reset zoom (erases the drawing while drawing)' },
   { gesture: 'Victory', pose: 'Peace sign', command: 'snapshot', label: 'Snapshot' },
+  { gesture: 'Three', pose: 'Three fingers', command: 'brb', label: 'Be right back on/off' },
   { gesture: 'Thumb_Up', pose: 'Thumbs up', command: 'nextFilter', label: 'Next filter' },
   { gesture: 'Thumb_Down', pose: 'Thumbs down', command: 'prevFilter', label: 'Previous filter' },
-  { gesture: 'Pointing_Up', pose: 'Point up', command: 'follow', label: 'Follow me on/off' },
   { gesture: 'Closed_Fist', pose: 'Fist', command: 'blur', label: 'Background blur on/off' },
-  { gesture: 'ILoveYou', pose: 'Rock on', command: 'hearts', label: 'Hearts' }
+  { gesture: 'ILoveYou', pose: 'Rock on', command: 'draw', label: 'Drawing on/off' },
+  { gesture: 'Heart', pose: 'Heart with both hands', command: 'hearts', label: 'Hearts' }
 ]
+
+type Point = [number, number]
+
+/** Our own poses from the finger states (MediaPipe has no "three fingers" or "point"). */
+export function poseOf(h: HandData): string {
+  const [, index, middle, ring, pinky] = h.fingers
+  if (index && middle && ring && !pinky) return 'Three'
+  if ((index && !middle && !ring && !pinky) || h.gesture === 'Pointing_Up') return 'Point'
+  return h.gesture
+}
+
+/** Two hands making a heart: index tips touch on top, thumb tips touch below. */
+export function isHeart(a: HandData, b: HandData, aspect: number): boolean {
+  const dist = (p: Point, q: Point): number => Math.hypot((p[0] - q[0]) * aspect, p[1] - q[1])
+  const s = (a.size + b.size) / 2
+  const tipsY = (a.tip[1] + b.tip[1]) / 2
+  const thumbsY = (a.thumb[1] + b.thumb[1]) / 2
+  // two real hands side by side (not the same hand reported twice)
+  const sideBySide = Math.abs(a.wrist[0] - b.wrist[0]) * aspect > s * 0.6
+  return sideBySide && dist(a.tip, b.tip) < s * 0.7 && dist(a.thumb, b.thumb) < s * 0.7 && tipsY < thumbsY - s * 0.35
+}
 
 const HOLD_MS = 700 // how long a gesture must be held
 const COOLDOWN_MS = 1500 // between two commands
@@ -44,7 +73,8 @@ const clamp = (v: number, a: number, b: number): number => Math.min(b, Math.max(
 export class HandControl {
   private mode: 'idle' | 'zoom' | 'pan' | 'wait' = 'idle'
   private start = { d: 1, x: 0, y: 0, zoom: 1, panX: 0, panY: 0 }
-  private smooth = new Map<string, { x: number; y: number }>()
+  private smooth = new Map<string, { x: number; y: number; tip: Point }>()
+  private pointing = false
   private hold = { gesture: '', since: 0 }
   private lastCommandAt = 0
   private lastHint: string | null = null
@@ -56,6 +86,7 @@ export class HandControl {
     this.smooth.clear()
     this.hold = { gesture: '', since: 0 }
     this.hint(null)
+    this.point(null)
   }
 
   update(raw: HandData[], aspect: number, now = performance.now()): void {
@@ -108,10 +139,25 @@ export class HandControl {
     }
     if (this.mode === 'pan') this.mode = 'idle'
 
+    // two hands making a heart
+    const heart = hands.length >= 2 && isHeart(hands[0], hands[1], aspect)
+
+    // pointing with the index finger: laser pointer, or the pen while drawing
+    const pointer = heart ? undefined : hands.find((h) => poseOf(h) === 'Point')
+    if (pointer) {
+      this.point(pointer.tip)
+      this.hold = { gesture: '', since: 0 }
+      this.hint(this.a.drawing() ? 'Drawing' : 'Laser pointer')
+      return
+    }
+    this.point(null)
+
     // hold a gesture to run a command
-    const match = hands
-      .map((h) => ({ h, c: HAND_COMMANDS.find((c) => c.gesture === h.gesture) }))
-      .find((x) => x.c && x.h.score > 0.6)
+    const match = heart
+      ? { h: hands[0], c: HAND_COMMANDS.find((c) => c.gesture === 'Heart') }
+      : hands
+          .map((h) => ({ h, c: HAND_COMMANDS.find((c) => c.gesture === poseOf(h)) }))
+          .find((x) => x.c && (x.c.gesture === 'Three' || x.h.score > 0.6))
     if (!match?.c) {
       this.hold = { gesture: '', since: 0 }
       // tell people their hand is seen, so a gesture that is not recognised
@@ -137,9 +183,23 @@ export class HandControl {
 
   private smoothed(h: HandData): HandData {
     const prev = this.smooth.get(h.side)
-    const next = prev ? { x: prev.x + (h.x - prev.x) * SMOOTH, y: prev.y + (h.y - prev.y) * SMOOTH } : { x: h.x, y: h.y }
+    const lerp = (a: number, b: number): number => a + (b - a) * SMOOTH
+    const next = prev
+      ? {
+          x: lerp(prev.x, h.x),
+          y: lerp(prev.y, h.y),
+          // the pointer is smoothed again on the GPU side: keep this one snappy
+          tip: [prev.tip[0] + (h.tip[0] - prev.tip[0]) * 0.75, prev.tip[1] + (h.tip[1] - prev.tip[1]) * 0.75] as Point
+        }
+      : { x: h.x, y: h.y, tip: h.tip }
     this.smooth.set(h.side, next)
     return { ...h, ...next }
+  }
+
+  private point(p: Point | null): void {
+    if (!p && !this.pointing) return
+    this.pointing = !!p
+    this.a.pointer(p)
   }
 
   private hint(text: string | null): void {

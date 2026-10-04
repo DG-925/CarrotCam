@@ -87,6 +87,9 @@ export class OverlayLayer {
   private brbSince = 0
   private logo: ImageBitmap | null = null
   hasContent = false
+  // laser pointer / air drawing, in output pixels (set every frame while used)
+  private ink: { pointer: [number, number] | null; strokes: [number, number][][]; drawing: boolean } | null = null
+  private trail: [number, number][] = []
 
   setLogo(bmp: ImageBitmap): void {
     this.logo = bmp
@@ -230,6 +233,19 @@ export class OverlayLayer {
     this.dirty = true
   }
 
+  /** Laser pointer and air drawing for this frame (output pixels). */
+  setInk(pointer: [number, number] | null, strokes: [number, number][][], drawing: boolean): void {
+    if (pointer && !drawing) {
+      this.trail.push(pointer)
+      if (this.trail.length > 10) this.trail.shift()
+    } else if (this.trail.length) {
+      this.trail.shift() // let the trail fade out
+    }
+    const active = !!pointer || strokes.length > 0 || this.trail.length > 0
+    if (active || this.ink) this.dirty = true
+    this.ink = active ? { pointer, strokes, drawing } : null
+  }
+
   /** Advances animations; returns true when the texture must be re-uploaded. */
   update(dt: number): boolean {
     const o = this.settings
@@ -321,6 +337,10 @@ export class OverlayLayer {
       this.drawParticles(dt)
       content = true
     }
+    if (this.ink && this.privacy !== 'brb') {
+      this.drawInk(this.ink, s)
+      content = true
+    }
     this.hasContent = content
   }
 
@@ -372,6 +392,69 @@ export class OverlayLayer {
       ctx.fillStyle = tag.style === 'carrot' ? '#ffb27a' : 'rgba(255,255,255,0.85)'
       ctx.font = `500 ${22 * s}px ${UI_FONT}`
       ctx.fillText(title, tx, y + 84 * s)
+    }
+    ctx.restore()
+  }
+
+  private drawInk(ink: NonNullable<OverlayLayer['ink']>, s: number): void {
+    const { ctx } = this
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    // drawing: bright strokes with a soft dark edge so they read on any background
+    for (const pass of [
+      { color: 'rgba(0,0,0,0.35)', width: 11 * s },
+      { color: ORANGE, width: 7 * s }
+    ]) {
+      ctx.strokeStyle = pass.color
+      ctx.lineWidth = pass.width
+      for (const st of ink.strokes) {
+        if (st.length < 2) continue
+        ctx.beginPath()
+        ctx.moveTo(st[0][0], st[0][1])
+        for (let i = 1; i < st.length - 1; i++) {
+          const mx = (st[i][0] + st[i + 1][0]) / 2
+          const my = (st[i][1] + st[i + 1][1]) / 2
+          ctx.quadraticCurveTo(st[i][0], st[i][1], mx, my)
+        }
+        const last = st[st.length - 1]
+        ctx.lineTo(last[0], last[1])
+        ctx.stroke()
+      }
+    }
+    // laser: fading trail + glowing red dot
+    this.trail.forEach(([x, y], i) => {
+      const k = (i + 1) / this.trail.length
+      ctx.fillStyle = `rgba(255,40,40,${0.35 * k})`
+      ctx.beginPath()
+      ctx.arc(x, y, 6 * s * k, 0, Math.PI * 2)
+      ctx.fill()
+    })
+    if (ink.pointer) {
+      const [x, y] = ink.pointer
+      if (ink.drawing) {
+        // pen cursor
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 2.5 * s
+        ctx.fillStyle = ORANGE
+        ctx.beginPath()
+        ctx.arc(x, y, 8 * s, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+      } else {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, 26 * s)
+        g.addColorStop(0, 'rgba(255,60,60,0.9)')
+        g.addColorStop(0.35, 'rgba(255,30,30,0.35)')
+        g.addColorStop(1, 'rgba(255,0,0,0)')
+        ctx.fillStyle = g
+        ctx.beginPath()
+        ctx.arc(x, y, 26 * s, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = '#fff'
+        ctx.beginPath()
+        ctx.arc(x, y, 4 * s, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
     ctx.restore()
   }

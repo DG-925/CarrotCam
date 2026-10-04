@@ -104,6 +104,8 @@ interface StoreState {
   compare: boolean
   /** what hand control is doing right now ("Zoom 1.8×", "Snapshot — hold…") */
   handHint: string | null
+  /** air drawing: pointing draws instead of showing the laser */
+  inkMode: boolean
   ml: { ready: boolean; delegate: string; error?: string } | null
   toasts: Toast[]
   gpu: string
@@ -145,6 +147,7 @@ export const useStore = create<StoreState>((set, get) => ({
   recording: { active: false, startedAt: 0 },
   compare: false,
   handHint: null,
+  inkMode: false,
   ml: null,
   toasts: [],
   gpu: '',

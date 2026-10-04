@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Columns2, EyeOff, FlipHorizontal2, Hand, Maximize2, RotateCw, ChevronsLeftRight } from 'lucide-react'
-import { engine, toggleHandControl } from '@/lib/controller'
+import { Columns2, EyeOff, FlipHorizontal2, Hand, Maximize2, PenLine, RotateCw, SwitchCamera, ChevronsLeftRight } from 'lucide-react'
+import { engine, switchCamera, toggleDrawing, toggleHandControl } from '@/lib/controller'
 import { useStore } from '@/lib/store'
 
 function useElapsed(since: number): string {
@@ -26,6 +26,7 @@ export function Preview(): React.JSX.Element {
   const compare = useStore((s) => s.compare)
   const handControl = useStore((s) => s.app.handControl)
   const handHint = useStore((s) => s.handHint)
+  const inkMode = useStore((s) => s.inkMode)
   const set = useStore((s) => s.set)
   const [split, setSplit] = useState(0.5)
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
@@ -184,9 +185,17 @@ export function Preview(): React.JSX.Element {
           <RotateCw size={18} />
           <span className="tooltip">Rotate{effects.framing.rotate ? ` (${effects.framing.rotate}°)` : ''}</span>
         </button>
+        <button className="tool" onClick={() => switchCamera()}>
+          <SwitchCamera size={19} />
+          <span className="tooltip">Switch camera</span>
+        </button>
         <button className={`tool ${handControl ? 'on' : ''}`} onClick={() => void toggleHandControl()}>
           <Hand size={19} />
           <span className="tooltip">{handControl ? 'Hand control on' : 'Hand control'}</span>
+        </button>
+        <button className={`tool ${inkMode ? 'on' : ''}`} onClick={() => toggleDrawing()}>
+          <PenLine size={18} />
+          <span className="tooltip">{inkMode ? 'Drawing on (point to draw)' : 'Draw in the air'}</span>
         </button>
         <button
           className="tool"

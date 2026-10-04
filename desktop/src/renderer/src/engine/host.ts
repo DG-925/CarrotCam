@@ -107,6 +107,15 @@ export class Engine {
     this.post({ t: 'source', stream: processor.readable, id }, [processor.readable as unknown as Transferable])
   }
 
+  /** Laser pointer / pen position (source uv) from hand control. */
+  setInk(pointer: [number, number] | null, drawing: boolean): void {
+    this.post({ t: 'ink', pointer, drawing })
+  }
+
+  clearInk(): void {
+    this.post({ t: 'inkClear' })
+  }
+
   /** Hand control: zoom / move / commands with hand gestures. */
   setHandControl(enabled: boolean): void {
     this.post({ t: 'handControl', enabled })

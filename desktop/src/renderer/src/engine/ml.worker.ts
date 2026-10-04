@@ -13,6 +13,20 @@ import {
 import type { FaceData, FromMl, HandData, MlConfig, ToMl } from './types'
 
 const scope = self as unknown as DedicatedWorkerGlobalScope
+
+// MediaPipe loads its WASM loader (an ES module here) and then clears the global
+// ModuleFactory after creating each task. An ES module only runs once, so every
+// task after the first failed with "ModuleFactory not set": background
+// segmentation broke when hand control or face effects loaded first. Keep the
+// factory once it is set so segmentation, face and hands can all load.
+let moduleFactory: unknown
+Object.defineProperty(self, 'ModuleFactory', {
+  configurable: true,
+  get: () => moduleFactory,
+  set: (v: unknown) => {
+    if (v) moduleFactory = v
+  }
+})
 let port: MessagePort | null = null
 let base = ''
 let config: MlConfig = { segmentation: false, face: false, gestures: false, hands: false }
@@ -128,13 +142,22 @@ function toHand(lm: NormalizedLandmark[], side: string, gesture: string, score: 
   const was = pinched.get(side) ?? false
   const pinch = gesture !== 'Closed_Fist' && indexOut && (was ? ratio < 0.45 : ratio < 0.3)
   pinched.set(side, pinch)
+  // a finger is extended when its tip is clearly farther from the wrist than its middle joint
+  const out = (tip: number, pip: number): boolean => d(0, tip) > d(0, pip) * 1.12
+  // the thumb folds sideways: compare against the pinky knuckle instead of the wrist
+  const thumbOut = d(4, 17) > d(3, 17) * 1.08 && d(4, 5) > size * 0.45
   return {
     side,
     gesture,
     score,
     pinch,
     x: (lm[4].x + lm[8].x) / 2,
-    y: (lm[4].y + lm[8].y) / 2
+    y: (lm[4].y + lm[8].y) / 2,
+    tip: [lm[8].x, lm[8].y],
+    thumb: [lm[4].x, lm[4].y],
+    wrist: [lm[0].x, lm[0].y],
+    size,
+    fingers: [thumbOut, out(8, 6), out(12, 10), out(16, 14), out(20, 18)]
   }
 }
 
@@ -221,6 +244,12 @@ async function onFrame(bitmap: ImageBitmap, ts: number, aspect: number): Promise
             seen.add(side)
             return toHand(lm, side, g?.categoryName ?? 'None', g?.score ?? 0, aspect)
           })
+          // with a low detection threshold the same hand is sometimes reported twice
+          if (hands.length === 2) {
+            const [p, q] = hands
+            const apart = Math.hypot((p.wrist[0] - q.wrist[0]) * aspect, p.wrist[1] - q.wrist[1])
+            if (apart < Math.min(p.size, q.size) * 0.5) hands.splice(p.score >= q.score ? 1 : 0, 1)
+          }
           for (const side of [...pinched.keys()]) if (!hands.some((h) => h.side === side)) pinched.delete(side)
           send({ t: 'hands', hands, aspect })
         }

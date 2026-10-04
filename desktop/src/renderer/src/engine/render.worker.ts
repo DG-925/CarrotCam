@@ -107,6 +107,12 @@ let mlSentAt = 0
 let mlConfigKey = ''
 let lastGestureAt = 0
 let handControl = false
+// laser pointer / air drawing (source uv, so it stays on your finger when zooming)
+let inkTarget: [number, number] | null = null
+let inkPointer: [number, number] | null = null
+let inkDrawing = false
+let strokes: [number, number][][] = []
+let penDown = false
 
 let autoGain: [number, number, number] = [1, 1, 1]
 let autoTarget: [number, number, number] = [1, 1, 1]
@@ -386,6 +392,44 @@ function onMl(msg: FromMl): void {
   }
 }
 
+// ---- laser pointer / air drawing ------------------------------------------------------
+function onInk(pointer: [number, number] | null, drawing: boolean): void {
+  inkTarget = pointer
+  inkDrawing = drawing
+  if (!pointer) inkPointer = null
+  if (!pointer || !drawing) {
+    penDown = false
+    return
+  }
+  if (!penDown) {
+    strokes.push([])
+    penDown = true
+  }
+  const st = strokes[strokes.length - 1]
+  const last = st[st.length - 1]
+  if (!last || Math.hypot(last[0] - pointer[0], last[1] - pointer[1]) > 0.002) st.push(pointer)
+  if (st.length > 2000) penDown = false // very long stroke: start a new one
+  if (strokes.length > 200) strokes.shift()
+}
+
+function updateInk(toOut: (p: [number, number]) => [number, number]): void {
+  // hand positions arrive ~15x a second: glide the dot between them
+  if (inkTarget) {
+    inkPointer = inkPointer
+      ? [inkPointer[0] + (inkTarget[0] - inkPointer[0]) * 0.6, inkPointer[1] + (inkTarget[1] - inkPointer[1]) * 0.6]
+      : inkTarget
+  }
+  const px = (p: [number, number]): [number, number] => {
+    const [u, v] = toOut(p)
+    return [u * W, v * H]
+  }
+  overlay.setInk(
+    inkPointer ? px(inkPointer) : null,
+    strokes.map((st) => st.map(px)),
+    inkDrawing
+  )
+}
+
 // ---- source handling ---------------------------------------------------------------
 async function runSource(stream: ReadableStream<VideoFrame>): Promise<void> {
   const token = ++readerToken
@@ -645,6 +689,7 @@ function render(now: number): void {
   }
 
   // 7. overlays + border
+  updateInk(toOut)
   if (overlay.update(dt)) {
     gl.bindTexture(gl.TEXTURE_2D, overlayTex)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, overlay.canvas)
@@ -1029,6 +1074,13 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
       thumbIds = msg.ids.length ? msg.ids : null
       thumbCursor = 0
       lastThumbsAt = 0
+      break
+    case 'ink':
+      onInk(msg.pointer, msg.drawing)
+      break
+    case 'inkClear':
+      strokes = []
+      penDown = false
       break
     case 'handControl':
       handControl = msg.enabled

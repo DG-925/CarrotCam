@@ -34,6 +34,11 @@ export interface HandData {
   pinch: boolean // thumb and index finger tips touching
   x: number // pinch point (between thumb and index tips)
   y: number
+  tip: [number, number] // index fingertip
+  thumb: [number, number] // thumb tip
+  wrist: [number, number]
+  size: number // wrist -> middle knuckle, in source-height units
+  fingers: [boolean, boolean, boolean, boolean, boolean] // extended: thumb, index, middle, ring, pinky
 }
 
 export type ToMl =
@@ -81,6 +86,8 @@ export type ToRender =
   | { t: 'thumbs'; ids: string[] }
   | { t: 'standbyText'; text: string }
   | { t: 'handControl'; enabled: boolean }
+  | { t: 'ink'; pointer: [number, number] | null; drawing: boolean }
+  | { t: 'inkClear' }
 
 export type FromRender =
   | { t: 'ready'; gpu: string }
