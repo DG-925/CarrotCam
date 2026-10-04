@@ -44,22 +44,13 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 const startHidden = process.argv.includes('--hidden')
-// Run by the installer: register the virtual camera, then exit.
-const installDriverOnly = process.argv.includes('--install-driver')
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
 let quitting = false
 let trayHintShown = false
 const server = new PhoneServer()
 
-if (installDriverOnly) {
-  app
-    .whenReady()
-    .then(() => (process.platform === 'win32' ? installDriver() : null))
-    .then((status) => log.info('[driver] installer registration', status))
-    .catch((err) => log.error('[driver] installer registration failed', err))
-    .finally(() => app.exit(0))
-} else if (!app.requestSingleInstanceLock()) {
+if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => showWindow())
@@ -354,7 +345,6 @@ async function bootstrap(): Promise<void> {
   }
 
   if (process.platform === 'win32') {
-    // the virtual camera is always on: make sure the driver is registered
     void writeDriverFormat(s.output)
     ensureDriver()
       .then((status) => log.info('[driver] status', status))

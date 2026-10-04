@@ -15,6 +15,7 @@ export class PhoneLink {
   private last = { bytes: 0, ts: 0 }
   track: MediaStreamTrack | null = null
   private config: StreamConfig | null = null
+  private sid: number | undefined
   onStats: (s: LinkStats) => void = () => {}
   onEnded: () => void = () => {}
 
@@ -60,8 +61,11 @@ export class PhoneLink {
   }
 
   async handle(msg: PhoneToPc): Promise<void> {
-    if (msg.t === 'offer') await this.onOffer(msg.sdp)
-    else if (msg.t === 'ice') {
+    if (msg.t === 'offer') {
+      this.sid = msg.sid
+      await this.onOffer(msg.sdp)
+    } else if (msg.t === 'ice') {
+      if (msg.sid !== undefined && msg.sid !== this.sid) return
       const c: RTCIceCandidateInit = { candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex }
       if (this.pc?.remoteDescription) await this.pc.addIceCandidate(c).catch(() => {})
       else this.pendingIce.push(c)
@@ -76,6 +80,7 @@ export class PhoneLink {
       if (e.candidate) {
         this.send({
           t: 'ice',
+          sid: this.sid,
           candidate: e.candidate.candidate,
           sdpMid: e.candidate.sdpMid,
           sdpMLineIndex: e.candidate.sdpMLineIndex
@@ -118,7 +123,7 @@ export class PhoneLink {
     const answer = await pc.createAnswer()
     answer.sdp = this.tuneBitrate(answer.sdp ?? '')
     await pc.setLocalDescription(answer)
-    this.send({ t: 'answer', sdp: pc.localDescription?.sdp ?? answer.sdp ?? '' })
+    this.send({ t: 'answer', sid: this.sid, sdp: pc.localDescription?.sdp ?? answer.sdp ?? '' })
     for (const c of this.pendingIce.splice(0)) await pc.addIceCandidate(c).catch(() => {})
     this.startStats()
   }

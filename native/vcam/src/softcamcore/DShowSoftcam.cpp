@@ -1,5 +1,4 @@
 #include "DShowSoftcam.h"
-#include "LogoImage.h"
 
 #include <cstring>
 #include <string>
@@ -8,6 +7,9 @@
 #include <cmath>
 #include <chrono>
 #include <ctime>
+#include <objidl.h>
+#include <gdiplus.h>
+#include <shlwapi.h>
 
 
 namespace {
@@ -182,6 +184,45 @@ DefaultFormat defaultFormat()
     return fmt;
 }
 
+// Draws the CarrotCam logo (PNG embedded as resource 101) with GDI+.
+void drawLogo(HDC dc, int cx, int cy, int size)
+{
+    HMODULE module = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCWSTR>(&drawLogo), &module);
+    HRSRC res = FindResourceW(module, MAKEINTRESOURCEW(101), RT_RCDATA);
+    if (!res)
+    {
+        return;
+    }
+    HGLOBAL handle = LoadResource(module, res);
+    const DWORD length = SizeofResource(module, res);
+    const void* data = handle ? LockResource(handle) : nullptr;
+    if (!data || !length)
+    {
+        return;
+    }
+    IStream* stream = SHCreateMemStream(static_cast<const BYTE*>(data), length);
+    if (!stream)
+    {
+        return;
+    }
+    ULONG_PTR token = 0;
+    Gdiplus::GdiplusStartupInput input;
+    if (Gdiplus::GdiplusStartup(&token, &input, nullptr) == Gdiplus::Ok)
+    {
+        {
+            Gdiplus::Bitmap bitmap(stream);
+            Gdiplus::Graphics graphics(dc);
+            graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+            graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+            graphics.DrawImage(&bitmap, cx - size / 2, cy - size / 2, size, size);
+        }
+        Gdiplus::GdiplusShutdown(token);
+    }
+    stream->Release();
+}
+
 // Draws the "open CarrotCam" card into a bottom-up 24-bit DIB.
 void drawPlaceholder(uint8_t* dib, int width, int height)
 {
@@ -210,16 +251,6 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
     const float cx = width * 0.5f;
     const float cy = height * 0.40f;
     const float r = height * 0.11f;
-    // the CarrotCam logo (LogoImage.h), centered on (cx, cy)
-    const float logo = r * 2.3f;
-    const float lx0 = cx - logo * 0.5f, ly0 = cy - logo * 0.5f;
-    const int ls = carrotcam_logo::kSize;
-    auto texel = [&](int tx, int ty, int c) -> float
-    {
-        tx = (std::min)((std::max)(tx, 0), ls - 1);
-        ty = (std::min)((std::max)(ty, 0), ls - 1);
-        return carrotcam_logo::kRgba[((std::size_t)ty * ls + tx) * 4 + c];
-    };
     uint8_t* px = static_cast<uint8_t*>(bits);
     for (int y = 0; y < height; y++)
     {
@@ -233,29 +264,13 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
             const float d = std::sqrt(dx * dx + dy * dy);
             const float glow = std::exp(-(d * d) / (2.0f * (r * 2.4f) * (r * 2.4f)));
             rr += 90.0f * glow; g += 36.0f * glow; b += 6.0f * glow;
-            // logo: bilinear sample, premultiplied "over"
-            const float u = (x + 0.5f - lx0) / logo * ls - 0.5f;
-            const float v = (y + 0.5f - ly0) / logo * ls - 0.5f;
-            if (u > -1.0f && v > -1.0f && u < (float)ls && v < (float)ls)
-            {
-                const int u0 = (int)std::floor(u), v0 = (int)std::floor(v);
-                const float fu = u - u0, fv = v - v0;
-                float c[4];
-                for (int k = 0; k < 4; k++)
-                {
-                    const float top = texel(u0, v0, k) * (1.0f - fu) + texel(u0 + 1, v0, k) * fu;
-                    const float bottom = texel(u0, v0 + 1, k) * (1.0f - fu) + texel(u0 + 1, v0 + 1, k) * fu;
-                    c[k] = top * (1.0f - fv) + bottom * fv;
-                }
-                const float inv = 1.0f - c[3] / 255.0f;
-                rr = c[0] + rr * inv; g = c[1] + g * inv; b = c[2] + b * inv;
-            }
             row[x * 3 + 0] = (uint8_t)(std::min)(b, 255.0f);
             row[x * 3 + 1] = (uint8_t)(std::min)(g, 255.0f);
             row[x * 3 + 2] = (uint8_t)(std::min)(rr, 255.0f);
         }
     }
     GdiFlush();
+    drawLogo(dc, (int)cx, (int)cy, (int)(r * 2.4f));
 
     SetBkMode(dc, TRANSPARENT);
     auto drawText = [&](const wchar_t* text, int size, int weight, COLORREF color, int top)
@@ -270,9 +285,9 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
         SelectObject(dc, old_font);
         DeleteObject(font);
     };
-    drawText(L"CarrotCam", (int)(height * 0.075f), FW_BOLD, RGB(255, 255, 255), (int)(cy + r * 1.45f));
+    drawText(L"CarrotCam", (int)(height * 0.075f), FW_BOLD, RGB(255, 255, 255), (int)(cy + r * 1.5f));
     drawText(L"Open the CarrotCam app to start the camera", (int)(height * 0.032f), FW_NORMAL,
-        RGB(170, 160, 150), (int)(cy + r * 1.45f + height * 0.105f));
+        RGB(170, 160, 150), (int)(cy + r * 1.5f + height * 0.105f));
     GdiFlush();
 
     std::memcpy(dib, bits, stride * height);

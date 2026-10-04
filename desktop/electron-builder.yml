@@ -19,9 +19,12 @@ win:
   target:
     - target: nsis
       arch: [x64]
+    - target: zip
+      arch: [x64]
   icon: build/icon.ico
-  artifactName: CarrotCam-Setup-${version}.${ext}
+  artifactName: CarrotCam-${version}-Windows-portable.${ext}
 nsis:
+  artifactName: CarrotCam-Setup-${version}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

@@ -3,7 +3,22 @@
 // animated reactions. Uploaded as a texture only when it changes.
 import type { EffectSettings, Reaction } from '@shared/effects'
 
-const EMOJI_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif'
+// Lucide icon paths (24x24 viewBox) drawn as vectors on the video
+const ICON = {
+  heart:
+    'M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5',
+  sparkle:
+    'M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z',
+  thumbs: [
+    'M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z',
+    'M7 10v12'
+  ],
+  coffee: ['M10 2v2', 'M14 2v2', 'M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1', 'M6 2v2']
+}
+const HEART = new Path2D(ICON.heart)
+const SPARKLE = new Path2D(ICON.sparkle)
+const THUMBS = ICON.thumbs.map((d) => new Path2D(d))
+const COFFEE = ICON.coffee.map((d) => new Path2D(d))
 const UI_FONT = '"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'
 const ORANGE = '#ff7a1a'
 
@@ -17,13 +32,41 @@ interface Particle {
   size: number
   rot: number
   vr: number
-  kind: 'emoji' | 'rect' | 'spark' | 'drop'
-  glyph?: string
+  kind: 'heart' | 'sparkle' | 'thumb' | 'balloon' | 'rect' | 'spark' | 'drop'
   color?: string
 }
 
 function rand(a: number, b: number): number {
   return a + Math.random() * (b - a)
+}
+
+/** Draws 24x24 lucide icon paths centered at (x, y) with the given size. */
+function drawIcon(
+  ctx: OffscreenCanvasRenderingContext2D,
+  paths: Path2D[],
+  x: number,
+  y: number,
+  size: number,
+  style: { fill?: string; stroke?: string }
+): void {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.scale(size / 24, size / 24)
+  ctx.translate(-12, -12)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  for (const p of paths) {
+    if (style.fill) {
+      ctx.fillStyle = style.fill
+      ctx.fill(p)
+    }
+    if (style.stroke) {
+      ctx.strokeStyle = style.stroke
+      ctx.lineWidth = 2
+      ctx.stroke(p)
+    }
+  }
+  ctx.restore()
 }
 
 function roundRect(ctx: OffscreenCanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -42,7 +85,13 @@ export class OverlayLayer {
   private tagShownAt = 0
   private tagKey = ''
   private brbSince = 0
+  private logo: ImageBitmap | null = null
   hasContent = false
+
+  setLogo(bmp: ImageBitmap): void {
+    this.logo = bmp
+    this.dirty = true
+  }
 
   constructor(
     public w: number,
@@ -73,50 +122,53 @@ export class OverlayLayer {
   react(kind: Reaction): void {
     const { w, h } = this
     const s = h / 720
-    const burst = (glyphs: string[], count: number, from: 'bottom' | 'center' | 'top'): void => {
+    const warm = [ORANGE, '#ff4d6d', '#ff8fab', '#ffd166', '#ff9a3d']
+    const bright = [ORANGE, '#ffd166', '#06d6a0', '#3a86ff', '#ef476f', '#8338ec']
+    const rise = (kindOf: Particle['kind'], colors: string[], count: number, size: [number, number]): void => {
       for (let i = 0; i < count; i++) {
-        const x = from === 'center' ? w / 2 + rand(-60, 60) * s : rand(w * 0.08, w * 0.92)
-        const y = from === 'bottom' ? h + rand(0, 120) * s : from === 'top' ? -rand(0, 200) * s : h / 2
         this.particles.push({
-          x,
-          y,
-          vx: rand(-40, 40) * s,
-          vy: from === 'bottom' ? -rand(140, 300) * s : from === 'top' ? rand(200, 360) * s : -rand(20, 120) * s,
+          x: rand(w * 0.06, w * 0.94),
+          y: h + rand(0, 140) * s,
+          vx: rand(-35, 35) * s,
+          vy: -rand(150, 300) * s,
           life: 0,
-          max: rand(2.6, 4.2),
-          size: rand(38, 76) * s,
-          rot: rand(-0.4, 0.4),
-          vr: rand(-0.6, 0.6),
-          kind: 'emoji',
-          glyph: glyphs[i % glyphs.length]
+          max: rand(2.8, 4.4),
+          size: rand(size[0], size[1]) * s,
+          rot: rand(-0.35, 0.35),
+          vr: rand(-0.5, 0.5),
+          kind: kindOf,
+          color: colors[i % colors.length]
         })
       }
     }
     switch (kind) {
       case 'hearts':
-        burst(['❤️', '💖', '💕', '🧡'], 26, 'bottom')
+        rise('heart', warm, 28, [34, 72])
         break
       case 'balloons':
-        burst(['🎈', '🎈', '🎉'], 18, 'bottom')
+        rise('balloon', bright, 16, [50, 80])
         break
       case 'thumbs':
-        this.particles.push({
-          x: w / 2,
-          y: h / 2,
-          vx: 0,
-          vy: -30 * s,
-          life: 0,
-          max: 1.8,
-          size: 220 * s,
-          rot: 0,
-          vr: 0,
-          kind: 'emoji',
-          glyph: '👍'
-        })
-        burst(['👍', '✨'], 12, 'center')
+        this.particles.push({ x: w / 2, y: h / 2, vx: 0, vy: -25 * s, life: 0, max: 1.9, size: 200 * s, rot: 0, vr: 0, kind: 'thumb', color: ORANGE })
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2
+          const v = rand(160, 280) * s
+          this.particles.push({
+            x: w / 2,
+            y: h / 2,
+            vx: Math.cos(a) * v,
+            vy: Math.sin(a) * v,
+            life: 0,
+            max: rand(1.1, 1.7),
+            size: rand(18, 34) * s,
+            rot: 0,
+            vr: rand(-2, 2),
+            kind: 'sparkle',
+            color: i % 2 ? '#ffd166' : '#ffffff'
+          })
+        }
         break
-      case 'confetti': {
-        const colors = [ORANGE, '#ffd166', '#06d6a0', '#118ab2', '#ef476f', '#ffffff']
+      case 'confetti':
         for (let i = 0; i < 160; i++) {
           this.particles.push({
             x: rand(0, w),
@@ -129,18 +181,15 @@ export class OverlayLayer {
             rot: rand(0, 6.28),
             vr: rand(-8, 8),
             kind: 'rect',
-            color: colors[i % colors.length]
+            color: bright[i % bright.length]
           })
         }
         break
-      }
-      case 'fireworks': {
-        const colors = [ORANGE, '#ffd166', '#ff5d8f', '#7bdff2', '#b9fbc0']
+      case 'fireworks':
         for (let b = 0; b < 4; b++) {
           const cx = rand(w * 0.2, w * 0.8)
           const cy = rand(h * 0.15, h * 0.45)
-          const color = colors[b % colors.length]
-          const delay = b * 0.35
+          const color = bright[b % bright.length]
           for (let i = 0; i < 70; i++) {
             const a = (i / 70) * Math.PI * 2
             const v = rand(160, 300) * s
@@ -149,7 +198,7 @@ export class OverlayLayer {
               y: cy,
               vx: Math.cos(a) * v,
               vy: Math.sin(a) * v,
-              life: -delay,
+              life: -b * 0.35,
               max: 1.7,
               size: rand(3, 5) * s,
               rot: 0,
@@ -160,9 +209,8 @@ export class OverlayLayer {
           }
         }
         break
-      }
       case 'rain':
-        for (let i = 0; i < 140; i++) {
+        for (let i = 0; i < 160; i++) {
           this.particles.push({
             x: rand(0, w),
             y: -rand(0, h),
@@ -177,7 +225,6 @@ export class OverlayLayer {
             color: 'rgba(170,200,255,0.75)'
           })
         }
-        burst(['🌧️'], 3, 'top')
         break
     }
     this.dirty = true
@@ -255,6 +302,21 @@ export class OverlayLayer {
       content = true
     }
 
+    const wm = o.watermark
+    if (wm?.enabled && this.logo && this.privacy !== 'brb') {
+      const size = 66 * s
+      const m = 26 * s
+      const x = wm.corner.endsWith('l') ? m : w - m - size
+      const y = wm.corner.startsWith('t') ? m : h - m - size
+      ctx.save()
+      ctx.globalAlpha = Math.min(1, Math.max(0.1, wm.opacity / 100))
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'
+      ctx.shadowBlur = 10 * s
+      ctx.drawImage(this.logo, x, y, size, size)
+      ctx.restore()
+      content = true
+    }
+
     if (this.particles.length) {
       this.drawParticles(dt)
       content = true
@@ -329,9 +391,12 @@ export class OverlayLayer {
     ctx.lineWidth = 2 * s
     ctx.stroke()
     ctx.textAlign = 'center'
-    ctx.font = `${70 * s}px ${EMOJI_FONT}`
     ctx.textBaseline = 'middle'
-    ctx.fillText('☕', w / 2, y + 78 * s)
+    ctx.fillStyle = 'rgba(255,122,26,0.16)'
+    ctx.beginPath()
+    ctx.arc(w / 2, y + 78 * s, 44 * s, 0, Math.PI * 2)
+    ctx.fill()
+    drawIcon(ctx, COFFEE, w / 2, y + 78 * s, 50 * s, { stroke: ORANGE })
     ctx.fillStyle = '#fff'
     ctx.font = `800 ${50 * s}px ${UI_FONT}`
     ctx.fillText('Be right back', w / 2, y + 168 * s)
@@ -366,12 +431,42 @@ export class OverlayLayer {
       ctx.globalAlpha = Math.max(0, fade)
       ctx.translate(p.x, p.y)
       ctx.rotate(p.rot)
-      if (p.kind === 'emoji') {
-        const pop = p.size > 150 ? 0.6 + 0.4 * Math.min(1, p.life / 0.25) : 1
-        ctx.font = `${p.size * pop}px ${EMOJI_FONT}`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(p.glyph!, 0, 0)
+      if (p.kind === 'heart') {
+        drawIcon(ctx, [HEART], 0, 0, p.size, { fill: p.color })
+      } else if (p.kind === 'sparkle') {
+        drawIcon(ctx, [SPARKLE], 0, 0, p.size, { fill: p.color })
+      } else if (p.kind === 'thumb') {
+        const pop = 0.6 + 0.4 * Math.min(1, p.life / 0.22)
+        const r = (p.size / 2) * pop
+        ctx.shadowColor = 'rgba(0,0,0,0.35)'
+        ctx.shadowBlur = r * 0.3
+        ctx.fillStyle = p.color!
+        ctx.beginPath()
+        ctx.arc(0, 0, r, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.shadowBlur = 0
+        drawIcon(ctx, THUMBS, 0, 0, r * 1.1, { stroke: '#ffffff' })
+      } else if (p.kind === 'balloon') {
+        const r = p.size / 2
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)'
+        ctx.lineWidth = 1.5 * (h / 720)
+        ctx.beginPath()
+        ctx.moveTo(0, r * 1.25)
+        ctx.bezierCurveTo(r * 0.3, r * 1.8, -r * 0.3, r * 2.3, 0, r * 2.9)
+        ctx.stroke()
+        ctx.fillStyle = p.color!
+        ctx.beginPath()
+        ctx.ellipse(0, 0, r * 0.85, r * 1.05, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(-r * 0.12, r * 1.1)
+        ctx.lineTo(r * 0.12, r * 1.1)
+        ctx.lineTo(0, r * 0.98)
+        ctx.fill()
+        ctx.fillStyle = 'rgba(255,255,255,0.45)'
+        ctx.beginPath()
+        ctx.ellipse(-r * 0.3, -r * 0.4, r * 0.16, r * 0.28, -0.5, 0, Math.PI * 2)
+        ctx.fill()
       } else if (p.kind === 'rect') {
         ctx.fillStyle = p.color!
         ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2)
@@ -402,7 +497,6 @@ export class StandbyScreen {
   readonly canvas: OffscreenCanvas
   private ctx: OffscreenCanvasRenderingContext2D
   text = 'Connect your phone or pick a camera'
-  /** the CarrotCam logo (public/logo.png), drawn once loaded */
   logo: ImageBitmap | null = null
 
   constructor(
@@ -439,10 +533,14 @@ export class StandbyScreen {
 
     const r = 74 * s
     if (this.logo) {
-      // the real logo, gently breathing
-      const size = r * 2.3 * (1 + 0.025 * Math.sin(t * 1.6))
-      ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(this.logo, cx - size / 2, cy - size / 2, size, size)
+      // gently floating carrot
+      const bob = Math.sin(t * 1.8) * 6 * s
+      const size = r * 2.3
+      ctx.save()
+      ctx.translate(cx, cy + bob)
+      ctx.rotate(Math.sin(t * 1.2) * 0.05)
+      ctx.drawImage(this.logo, -size / 2, -size / 2, size, size)
+      ctx.restore()
     } else {
       ctx.fillStyle = ORANGE
       ctx.beginPath()

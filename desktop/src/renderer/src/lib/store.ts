@@ -74,7 +74,7 @@ function loadPresets(): Preset[] {
   try {
     const raw = localStorage.getItem(PRESETS_KEY)
     if (!raw) return []
-    return (JSON.parse(raw) as Preset[]).map((p) => ({ ...p, effects: mergeEffects(p.effects) }))
+    return (JSON.parse(raw) as Preset[]).map((p) => ({ ...p, icon: p.icon ?? 'star', effects: mergeEffects(p.effects) }))
   } catch {
     return []
   }
@@ -85,8 +85,7 @@ interface StoreState {
   app: AppSettings
   dark: boolean
   page: Page
-  /** the phones popup (opened from the camera dropdown) */
-  devicesOpen: boolean
+  phonesOpen: boolean
   tab: PanelTab
   effects: EffectSettings
   userPresets: Preset[]
@@ -128,7 +127,7 @@ export const useStore = create<StoreState>((set, get) => ({
   app: defaultAppSettings,
   dark: true,
   page: 'studio',
-  devicesOpen: false,
+  phonesOpen: false,
   tab: 'looks',
   effects: loadEffects(),
   userPresets: loadPresets(),
@@ -173,7 +172,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const preset: Preset = {
       id: `user:${Date.now().toString(36)}`,
       name: name.trim().slice(0, 32) || 'My look',
-      emoji: '⭐',
+      icon: 'star',
       effects: cloneEffects(get().effects)
     }
     const userPresets = [...get().userPresets, preset]

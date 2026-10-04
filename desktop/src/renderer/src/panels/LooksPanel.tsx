@@ -1,11 +1,24 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { Plus, Trash2, Wand } from 'lucide-react'
+import { Briefcase, Film, Flashlight, Gamepad2, Leaf, Moon, Plus, ScanFace, Sparkles, Star, Trash2, Tv, Wand } from 'lucide-react'
 import { cloneEffects, defaultEffects } from '@shared/effects'
 import { BUILT_IN_PRESETS } from '@/lib/presets'
 import { useStore } from '@/lib/store'
 import { Section, ToggleRow, stagger } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
+
+const ICONS: Record<string, typeof Leaf> = {
+  leaf: Leaf,
+  sparkles: Sparkles,
+  gamepad: Gamepad2,
+  film: Film,
+  flashlight: Flashlight,
+  briefcase: Briefcase,
+  tv: Tv,
+  moon: Moon,
+  star: Star,
+  scan: ScanFace
+}
 
 export function LooksPanel(): React.JSX.Element {
   const [fx, update] = useFx()
@@ -19,21 +32,25 @@ export function LooksPanel(): React.JSX.Element {
   return (
     <>
       <PanelTitle title="Looks" onReset={() => replace(cloneEffects(defaultEffects), 'natural')} />
-      <Section title="One-tap looks">
-        <div className="grid-4">
-          {BUILT_IN_PRESETS.map((p, i) => (
+      <div className="look-grid">
+        {BUILT_IN_PRESETS.map((p, i) => {
+          const Icon = ICONS[p.icon] ?? Star
+          return (
             <motion.button
               key={p.id}
               {...stagger(i)}
-              className={`tile ${activePreset === p.id ? 'active' : ''}`}
+              className={`look-card ${activePreset === p.id ? 'active' : ''}`}
               onClick={() => replace(p.effects, p.id)}
             >
-              <span className="emoji">{p.emoji}</span>
-              {p.name}
+              <span className="look-icon">
+                <Icon size={18} />
+              </span>
+              <span className="look-name">{p.name}</span>
+              <span className="look-desc">{p.description}</span>
             </motion.button>
-          ))}
-        </div>
-      </Section>
+          )
+        })}
+      </div>
 
       <Section
         title="My looks"
@@ -71,24 +88,15 @@ export function LooksPanel(): React.JSX.Element {
           </motion.form>
         )}
         {userPresets.length === 0 && naming === null ? (
-          <p className="hint">Tweak anything you like, then save it here to switch back with one tap.</p>
+          <p className="hint">Tweak anything you like, then save it here to switch back with one click.</p>
         ) : (
-          <div className="grid-2">
+          <div style={{ display: 'grid', gap: 8 }}>
             {userPresets.map((p, i) => (
-              <motion.div key={p.id} {...stagger(i)} style={{ position: 'relative' }}>
-                <button
-                  className={`tile ${activePreset === p.id ? 'active' : ''}`}
-                  style={{ width: '100%', flexDirection: 'row', justifyContent: 'flex-start', padding: '10px 12px' }}
-                  onClick={() => replace(p.effects, p.id)}
-                >
-                  <span>{p.emoji}</span> {p.name}
+              <motion.div key={p.id} {...stagger(i)} className={`my-look ${activePreset === p.id ? 'active' : ''}`}>
+                <button className="my-look-main" onClick={() => replace(p.effects, p.id)}>
+                  <Star size={16} /> {p.name}
                 </button>
-                <button
-                  className="icon-btn"
-                  style={{ position: 'absolute', right: 4, top: 4 }}
-                  title="Delete"
-                  onClick={() => remove(p.id)}
-                >
+                <button className="icon-btn" title="Delete" onClick={() => remove(p.id)}>
                   <Trash2 size={14} />
                 </button>
               </motion.div>
@@ -97,17 +105,15 @@ export function LooksPanel(): React.JSX.Element {
         )}
       </Section>
 
-      <Section title="Quick fixes">
-        <div className="card">
-          <ToggleRow
-            title="Auto enhance"
-            hint="Balances exposure and white balance live"
-            icon={<Wand size={18} color="var(--accent)" />}
-            value={fx.autoEnhance}
-            onChange={(v) => update((e) => void (e.autoEnhance = v))}
-          />
-        </div>
-      </Section>
+      <div className="card">
+        <ToggleRow
+          title="Auto enhance"
+          hint="Fixes brightness and color automatically"
+          icon={<Wand size={18} color="var(--accent)" />}
+          value={fx.autoEnhance}
+          onChange={(v) => update((e) => void (e.autoEnhance = v))}
+        />
+      </div>
     </>
   )
 }

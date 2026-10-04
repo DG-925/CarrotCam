@@ -13,6 +13,7 @@ export interface PhoneInfo {
   model: string
   platform: 'android' | 'ios' | string
   app: string
+  transport?: 'usb' | 'wifi'
 }
 
 export interface PhoneStatus {
@@ -39,9 +40,9 @@ export interface StreamConfig {
 
 export type PhoneToPc =
   | { t: 'hello'; v: number; info: PhoneInfo; code?: string; token?: string }
-  | { t: 'offer'; sdp: string }
+  | { t: 'offer'; sdp: string; sid?: number }
   | { t: 'answer'; sdp: string }
-  | { t: 'ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }
+  | { t: 'ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null; sid?: number }
   | { t: 'status'; status: PhoneStatus }
   | { t: 'remote'; action: string; value?: unknown }
   | { t: 'pong' }
@@ -52,9 +53,9 @@ export type PcToPhone =
   | { t: 'denied'; reason: 'bad_code' | 'version' | 'busy' }
   | { t: 'start'; config: StreamConfig }
   | { t: 'stop' }
-  | { t: 'answer'; sdp: string }
+  | { t: 'answer'; sdp: string; sid?: number }
   | { t: 'offer'; sdp: string }
-  | { t: 'ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null }
+  | { t: 'ice'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null; sid?: number }
   | { t: 'cmd'; action: string; value?: unknown }
   | { t: 'state'; state: RemoteState }
   | { t: 'ping' }

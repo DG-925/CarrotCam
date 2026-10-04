@@ -8,8 +8,7 @@ export interface Look {
   id: string
   name: string
   swatch: [string, string]
-  /** search keywords */
-  tags?: string[]
+  tags?: string // extra words for search
   exposure?: number // stops
   temperature?: number // -1..1
   tint?: number // -1..1 (+ = magenta)
@@ -27,469 +26,49 @@ export interface Look {
 }
 
 export const LOOKS: Look[] = [
-  { id: 'original', name: 'Original', swatch: ['#8a8580', '#3b3734'], tags: ['natural', 'none', 'clean'] },
-  {
-    id: 'carrot',
-    name: 'Carrot',
-    swatch: ['#ff9a3d', '#3a1f10'],
-    tags: ['warm', 'orange', 'creative'],
-    temperature: 0.22,
-    saturation: 1.14,
-    contrast: 0.16,
-    shadows: [-0.012, 0.004, 0.018],
-    highlights: [0.045, 0.016, -0.02]
-  },
-  {
-    id: 'vivid',
-    name: 'Vivid',
-    swatch: ['#ff4f81', '#2bc4ff'],
-    tags: ['bright', 'colorful', 'saturated'],
-    saturation: 1.38,
-    contrast: 0.2,
-    exposure: 0.05
-  },
-  {
-    id: 'warm',
-    name: 'Warm',
-    swatch: ['#ffb36b', '#7a3b12'],
-    tags: ['warm'],
-    temperature: 0.36,
-    gain: [1.03, 1.0, 0.96],
-    saturation: 1.05
-  },
-  {
-    id: 'cool',
-    name: 'Cool',
-    swatch: ['#7cc8ff', '#13304a'],
-    tags: ['cool', 'blue'],
-    temperature: -0.34,
-    tint: -0.04,
-    saturation: 0.98
-  },
-  {
-    id: 'cinematic',
-    name: 'Cinematic',
-    swatch: ['#ffa45c', '#0f4c5c'],
-    tags: ['film', 'movie', 'teal', 'orange'],
-    contrast: 0.26,
-    saturation: 0.9,
-    shadows: [-0.03, 0.02, 0.055],
-    highlights: [0.06, 0.02, -0.045],
-    fade: 0.04,
-    vignette: 0.25
-  },
-  {
-    id: 'film',
-    name: 'Film',
-    swatch: ['#e9c9a2', '#4a5a63'],
-    tags: ['film', 'analog', 'grain'],
-    temperature: 0.08,
-    lift: [0.0, 0.01, 0.035],
-    saturation: 0.94,
-    contrast: 0.1,
-    fade: 0.07,
-    grain: 0.25
-  },
-  {
-    id: 'golden',
-    name: 'Golden Hour',
-    swatch: ['#ffd36b', '#a23f12'],
-    tags: ['warm', 'sunset', 'sun'],
-    temperature: 0.5,
-    gain: [1.08, 1.0, 0.86],
-    saturation: 1.12,
-    highlights: [0.04, 0.025, -0.02]
-  },
-  {
-    id: 'portrait',
-    name: 'Portrait',
-    swatch: ['#f6c7b0', '#6c4a3f'],
-    tags: ['skin', 'soft', 'warm'],
-    temperature: 0.1,
-    saturation: 0.96,
-    contrast: -0.04,
-    lift: [0.02, 0.012, 0.01],
-    highlights: [0.025, 0.012, 0.0]
-  },
-  {
-    id: 'arctic',
-    name: 'Arctic',
-    swatch: ['#dff6ff', '#4b7ca0'],
-    tags: ['cool', 'blue', 'cold'],
-    temperature: -0.45,
-    saturation: 0.8,
-    exposure: 0.12,
-    highlights: [-0.02, 0.02, 0.05]
-  },
-  {
-    id: 'neon',
-    name: 'Neon',
-    swatch: ['#ff2fd6', '#2d0b6b'],
-    tags: ['creative', 'pink', 'purple'],
-    saturation: 1.55,
-    contrast: 0.3,
-    tint: 0.18,
-    shadows: [0.03, -0.02, 0.08],
-    highlights: [0.02, 0.0, 0.05]
-  },
-  {
-    id: 'pastel',
-    name: 'Pastel',
-    swatch: ['#ffd6e7', '#b9d7ff'],
-    tags: ['soft', 'light', 'pink'],
-    saturation: 0.72,
-    fade: 0.14,
-    exposure: 0.1,
-    highlights: [0.03, 0.0, 0.03]
-  },
-  {
-    id: 'vintage',
-    name: 'Vintage',
-    swatch: ['#e3b778', '#5b3a29'],
-    tags: ['film', 'retro', 'old', 'warm'],
-    temperature: 0.2,
-    saturation: 0.78,
-    fade: 0.16,
-    shadows: [0.04, 0.01, -0.02],
-    highlights: [0.05, 0.035, -0.04],
-    grain: 0.35,
-    vignette: 0.35
-  },
-  {
-    id: 'dramatic',
-    name: 'Dramatic',
-    swatch: ['#9aa3ad', '#111214'],
-    tags: ['moody', 'dark', 'contrast'],
-    contrast: 0.48,
-    saturation: 0.82,
-    exposure: -0.12,
-    vignette: 0.45
-  },
-  {
-    id: 'rose',
-    name: 'Rose',
-    swatch: ['#ff9fb5', '#5c2232'],
-    tags: ['pink', 'warm'],
-    tint: 0.16,
-    temperature: 0.12,
-    saturation: 1.04,
-    highlights: [0.04, 0.0, 0.02]
-  },
-  {
-    id: 'matte',
-    name: 'Matte',
-    swatch: ['#b3aca4', '#4a4642'],
-    tags: ['film', 'soft', 'faded'],
-    fade: 0.2,
-    contrast: -0.08,
-    saturation: 0.88
-  },
-  {
-    id: 'cyber',
-    name: 'Cyber',
-    swatch: ['#00f0ff', '#ff00a8'],
-    tags: ['creative', 'neon', 'cool'],
-    saturation: 1.25,
-    contrast: 0.22,
-    shadows: [0.04, -0.02, 0.07],
-    highlights: [-0.04, 0.05, 0.05]
-  },
-  {
-    id: 'noir',
-    name: 'Noir',
-    swatch: ['#f2f2f2', '#0b0b0b'],
-    tags: ['bw', 'black', 'white', 'mono'],
-    bw: [0.3, 0.6, 0.1],
-    contrast: 0.42,
-    vignette: 0.4
-  },
-  {
-    id: 'mono',
-    name: 'Mono',
-    swatch: ['#d9d9d9', '#555555'],
-    tags: ['bw', 'black', 'white', 'grey'],
-    bw: [0.299, 0.587, 0.114],
-    fade: 0.08
-  },
-  {
-    id: 'sepia',
-    name: 'Sepia',
-    swatch: ['#e6c79c', '#4d3319'],
-    tags: ['bw', 'brown', 'old', 'retro'],
-    bw: [0.3, 0.59, 0.11],
-    shadows: [0.05, 0.02, -0.03],
-    highlights: [0.08, 0.04, -0.03],
-    fade: 0.06
-  },
-  // ---- more looks ----
-  {
-    id: 'tealorange',
-    name: 'Teal & Orange',
-    swatch: ['#ff9b54', '#0b6e75'],
-    tags: ['film', 'movie', 'cinematic', 'warm', 'cool'],
-    contrast: 0.2,
-    saturation: 1.08,
-    shadows: [-0.05, 0.025, 0.07],
-    highlights: [0.07, 0.025, -0.05]
-  },
-  {
-    id: 'moody',
-    name: 'Moody',
-    swatch: ['#6b7280', '#1f2933'],
-    tags: ['dark', 'cool', 'film', 'contrast'],
-    exposure: -0.1,
-    contrast: 0.22,
-    saturation: 0.72,
-    shadows: [-0.01, 0.01, 0.03],
-    fade: 0.05,
-    vignette: 0.3
-  },
-  {
-    id: 'sunset',
-    name: 'Sunset',
-    swatch: ['#ff7e5f', '#6a1b4d'],
-    tags: ['warm', 'pink', 'orange', 'sun'],
-    temperature: 0.4,
-    tint: 0.1,
-    saturation: 1.15,
-    highlights: [0.06, 0.01, 0.0],
-    shadows: [0.02, -0.01, 0.04]
-  },
-  {
-    id: 'forest',
-    name: 'Forest',
-    swatch: ['#6fbf73', '#173d22'],
-    tags: ['green', 'nature', 'cool'],
-    tint: -0.14,
-    saturation: 1.02,
-    contrast: 0.12,
-    shadows: [-0.01, 0.025, 0.0],
-    highlights: [0.02, 0.03, -0.01]
-  },
-  {
-    id: 'tokyo',
-    name: 'Tokyo Night',
-    swatch: ['#7f5af0', '#0b132b'],
-    tags: ['creative', 'neon', 'cool', 'night', 'purple'],
-    temperature: -0.25,
-    tint: 0.12,
-    saturation: 1.2,
-    contrast: 0.25,
-    shadows: [0.02, -0.01, 0.08],
-    highlights: [0.05, 0.0, 0.04],
-    vignette: 0.2
-  },
-  {
-    id: 'bleach',
-    name: 'Bleach Bypass',
-    swatch: ['#c9c6c0', '#2e2b28'],
-    tags: ['film', 'movie', 'contrast', 'desaturated'],
-    contrast: 0.45,
-    saturation: 0.5,
-    exposure: 0.04,
-    vignette: 0.2
-  },
-  {
-    id: 'cross',
-    name: 'Cross Process',
-    swatch: ['#d8f06b', '#1b5e7a'],
-    tags: ['film', 'creative', 'retro', 'green'],
-    contrast: 0.22,
-    saturation: 1.2,
-    lift: [0.0, 0.02, 0.06],
-    gain: [1.04, 1.04, 0.88],
-    tint: -0.06
-  },
-  {
-    id: 'lomo',
-    name: 'Lomo',
-    swatch: ['#f3d36b', '#3b1d4a'],
-    tags: ['film', 'retro', 'vignette', 'warm'],
-    contrast: 0.32,
-    saturation: 1.3,
-    temperature: 0.12,
-    shadows: [0.0, -0.01, 0.04],
-    vignette: 0.6
-  },
-  {
-    id: 'instant',
-    name: 'Instant',
-    swatch: ['#f4e1c1', '#5e7d7e'],
-    tags: ['film', 'retro', 'faded', 'polaroid'],
-    temperature: 0.1,
-    saturation: 0.86,
-    fade: 0.12,
-    lift: [0.01, 0.025, 0.04],
-    highlights: [0.03, 0.02, -0.02],
-    vignette: 0.15
-  },
-  {
-    id: 'seventies',
-    name: 'Seventies',
-    swatch: ['#d9a441', '#6b3e1e'],
-    tags: ['retro', 'film', 'warm', 'old', '70s'],
-    temperature: 0.3,
-    saturation: 0.85,
-    fade: 0.1,
-    shadows: [0.04, 0.02, -0.03],
-    highlights: [0.05, 0.03, -0.05],
-    grain: 0.3
-  },
-  {
-    id: 'desert',
-    name: 'Desert',
-    swatch: ['#e8b77d', '#7a4a24'],
-    tags: ['warm', 'brown', 'nature'],
-    temperature: 0.3,
-    saturation: 0.9,
-    contrast: 0.1,
-    highlights: [0.04, 0.02, -0.03]
-  },
-  {
-    id: 'ocean',
-    name: 'Ocean',
-    swatch: ['#4fc3f7', '#0d3b66'],
-    tags: ['cool', 'blue', 'nature'],
-    temperature: -0.25,
-    tint: -0.05,
-    saturation: 1.1,
-    shadows: [-0.02, 0.01, 0.05]
-  },
-  {
-    id: 'lavender',
-    name: 'Lavender',
-    swatch: ['#c9b6ff', '#4b3a7a'],
-    tags: ['purple', 'soft', 'pink', 'pastel'],
-    tint: 0.12,
-    temperature: -0.08,
-    saturation: 0.9,
-    fade: 0.06,
-    highlights: [0.03, 0.0, 0.05]
-  },
-  {
-    id: 'mint',
-    name: 'Mint',
-    swatch: ['#b8f2d3', '#2d6a4f'],
-    tags: ['green', 'soft', 'cool', 'pastel'],
-    tint: -0.1,
-    temperature: -0.1,
-    saturation: 0.88,
-    exposure: 0.06,
-    fade: 0.06
-  },
-  {
-    id: 'peach',
-    name: 'Peach',
-    swatch: ['#ffc4a3', '#8c4a3a'],
-    tags: ['warm', 'skin', 'soft', 'pink'],
-    temperature: 0.18,
-    tint: 0.06,
-    saturation: 1.0,
-    exposure: 0.05,
-    lift: [0.02, 0.01, 0.0]
-  },
-  {
-    id: 'cocoa',
-    name: 'Cocoa',
-    swatch: ['#a47551', '#2b1a12'],
-    tags: ['warm', 'brown', 'dark'],
-    temperature: 0.25,
-    saturation: 0.8,
-    contrast: 0.18,
-    exposure: -0.06,
-    shadows: [0.03, 0.01, -0.02]
-  },
-  {
-    id: 'autumn',
-    name: 'Autumn',
-    swatch: ['#e07a2f', '#5a2a0c'],
-    tags: ['warm', 'orange', 'nature', 'fall'],
-    temperature: 0.32,
-    tint: -0.04,
-    saturation: 1.18,
-    contrast: 0.12,
-    highlights: [0.05, 0.02, -0.04]
-  },
-  {
-    id: 'spring',
-    name: 'Spring',
-    swatch: ['#a8e6a1', '#f7a1c4'],
-    tags: ['bright', 'green', 'pink', 'colorful'],
-    exposure: 0.1,
-    saturation: 1.15,
-    tint: -0.03,
-    lift: [0.015, 0.02, 0.01]
-  },
-  {
-    id: 'airy',
-    name: 'Bright & Airy',
-    swatch: ['#fdf6ec', '#c9d6df'],
-    tags: ['bright', 'light', 'soft', 'clean'],
-    exposure: 0.18,
-    contrast: -0.1,
-    saturation: 0.92,
-    lift: [0.03, 0.03, 0.035]
-  },
-  {
-    id: 'clean',
-    name: 'Clean',
-    swatch: ['#e5e7eb', '#6b7280'],
-    tags: ['natural', 'subtle', 'clean', 'meeting'],
-    exposure: 0.04,
-    contrast: 0.08,
-    saturation: 1.05
-  },
-  {
-    id: 'velvet',
-    name: 'Velvet',
-    swatch: ['#b5179e', '#3a0ca3'],
-    tags: ['creative', 'purple', 'dark', 'pink'],
-    tint: 0.18,
-    saturation: 1.1,
-    contrast: 0.2,
-    shadows: [0.03, -0.02, 0.06],
-    vignette: 0.3
-  },
-  {
-    id: 'midnight',
-    name: 'Midnight',
-    swatch: ['#3a506b', '#0b0c10'],
-    tags: ['dark', 'cool', 'blue', 'night'],
-    temperature: -0.4,
-    exposure: -0.15,
-    saturation: 0.85,
-    contrast: 0.2,
-    vignette: 0.4
-  },
-  {
-    id: 'silver',
-    name: 'Silver',
-    swatch: ['#f5f5f5', '#8d8d8d'],
-    tags: ['bw', 'black', 'white', 'bright'],
-    bw: [0.25, 0.6, 0.15],
-    exposure: 0.1,
-    contrast: -0.05,
-    fade: 0.1
-  },
-  {
-    id: 'ink',
-    name: 'Ink',
-    swatch: ['#ffffff', '#000000'],
-    tags: ['bw', 'black', 'white', 'contrast', 'dark'],
-    bw: [0.35, 0.55, 0.1],
-    contrast: 0.7,
-    exposure: -0.05
-  },
-  {
-    id: 'selenium',
-    name: 'Selenium',
-    swatch: ['#d6d1e6', '#2f2a3d'],
-    tags: ['bw', 'purple', 'old', 'toned'],
-    bw: [0.3, 0.59, 0.11],
-    contrast: 0.2,
-    shadows: [0.01, -0.01, 0.04],
-    highlights: [0.02, 0.01, 0.0]
-  }
+  { id: 'original', name: 'Original', swatch: ['#8a8580', '#3b3734'], tags: 'none normal natural' },
+  { id: 'carrot', name: 'Carrot', swatch: ['#ff9a3d', '#3a1f10'], tags: 'warm orange vibrant', temperature: 0.22, saturation: 1.14, contrast: 0.16, shadows: [-0.012, 0.004, 0.018], highlights: [0.045, 0.016, -0.02] },
+  { id: 'vivid', name: 'Vivid', swatch: ['#ff4f81', '#2bc4ff'], tags: 'vibrant colorful bright saturated', exposure: 0.05, saturation: 1.38, contrast: 0.2 },
+  { id: 'warm', name: 'Warm', swatch: ['#ffb36b', '#7a3b12'], tags: 'warm cozy', temperature: 0.36, gain: [1.03, 1, 0.96], saturation: 1.05 },
+  { id: 'cool', name: 'Cool', swatch: ['#7cc8ff', '#13304a'], tags: 'cool blue cold', temperature: -0.34, tint: -0.04, saturation: 0.98 },
+  { id: 'cinematic', name: 'Cinematic', swatch: ['#ffa45c', '#0f4c5c'], tags: 'movie film teal orange', saturation: 0.9, contrast: 0.26, shadows: [-0.03, 0.02, 0.055], highlights: [0.06, 0.02, -0.045], fade: 0.04, vignette: 0.25 },
+  { id: 'film', name: 'Film', swatch: ['#e9c9a2', '#4a5a63'], tags: 'film analog grain', temperature: 0.08, lift: [0, 0.01, 0.035], saturation: 0.94, contrast: 0.1, fade: 0.07, grain: 0.25 },
+  { id: 'golden', name: 'Golden Hour', swatch: ['#ffd36b', '#a23f12'], tags: 'warm sunset gold', temperature: 0.5, gain: [1.08, 1, 0.86], saturation: 1.12, highlights: [0.04, 0.025, -0.02] },
+  { id: 'portrait', name: 'Portrait', swatch: ['#f6c7b0', '#6c4a3f'], tags: 'soft skin warm', temperature: 0.1, lift: [0.02, 0.012, 0.01], saturation: 0.96, contrast: -0.04, highlights: [0.025, 0.012, 0] },
+  { id: 'arctic', name: 'Arctic', swatch: ['#dff6ff', '#4b7ca0'], tags: 'cool blue cold bright', exposure: 0.12, temperature: -0.45, saturation: 0.8, highlights: [-0.02, 0.02, 0.05] },
+  { id: 'neon', name: 'Neon', swatch: ['#ff2fd6', '#2d0b6b'], tags: 'vibrant purple pink party', tint: 0.18, saturation: 1.55, contrast: 0.3, shadows: [0.03, -0.02, 0.08], highlights: [0.02, 0, 0.05] },
+  { id: 'pastel', name: 'Pastel', swatch: ['#ffd6e7', '#b9d7ff'], tags: 'soft light faded', exposure: 0.1, saturation: 0.72, highlights: [0.03, 0, 0.03], fade: 0.14 },
+  { id: 'vintage', name: 'Vintage', swatch: ['#e3b778', '#5b3a29'], tags: 'retro old faded warm grain', temperature: 0.2, saturation: 0.78, shadows: [0.04, 0.01, -0.02], highlights: [0.05, 0.035, -0.04], fade: 0.16, grain: 0.35, vignette: 0.35 },
+  { id: 'dramatic', name: 'Dramatic', swatch: ['#9aa3ad', '#111214'], tags: 'dark moody contrast', exposure: -0.12, saturation: 0.82, contrast: 0.48, vignette: 0.45 },
+  { id: 'rose', name: 'Rose', swatch: ['#ff9fb5', '#5c2232'], tags: 'pink warm soft', temperature: 0.12, tint: 0.16, saturation: 1.04, highlights: [0.04, 0, 0.02] },
+  { id: 'matte', name: 'Matte', swatch: ['#b3aca4', '#4a4642'], tags: 'faded soft flat', saturation: 0.88, contrast: -0.08, fade: 0.2 },
+  { id: 'cyber', name: 'Cyber', swatch: ['#00f0ff', '#ff00a8'], tags: 'vibrant teal pink futuristic', saturation: 1.25, contrast: 0.22, shadows: [0.04, -0.02, 0.07], highlights: [-0.04, 0.05, 0.05] },
+  { id: 'noir', name: 'Noir', swatch: ['#f2f2f2', '#0b0b0b'], tags: 'black white bw dark contrast', contrast: 0.42, bw: [0.3, 0.6, 0.1], vignette: 0.4 },
+  { id: 'mono', name: 'Mono', swatch: ['#d9d9d9', '#555555'], tags: 'black white bw gray', bw: [0.299, 0.587, 0.114], fade: 0.08 },
+  { id: 'sepia', name: 'Sepia', swatch: ['#e6c79c', '#4d3319'], tags: 'old brown retro bw', shadows: [0.05, 0.02, -0.03], highlights: [0.08, 0.04, -0.03], bw: [0.3, 0.59, 0.11], fade: 0.06 },
+  { id: 'kodak', name: 'Kodak Gold', swatch: ['#ffcf73', '#8a4b1f'], tags: 'film warm analog yellow', temperature: 0.28, saturation: 1.08, contrast: 0.12, highlights: [0.05, 0.035, -0.02], fade: 0.06, grain: 0.2 },
+  { id: 'fuji', name: 'Fuji Green', swatch: ['#c6e3b8', '#2f4f3a'], tags: 'film green analog cool', temperature: -0.05, tint: -0.1, saturation: 0.95, shadows: [-0.01, 0.03, 0.02], fade: 0.05, grain: 0.2 },
+  { id: 'polaroid', name: 'Polaroid', swatch: ['#f3dfbf', '#7d6a58'], tags: 'instant faded warm retro', temperature: 0.15, saturation: 0.85, highlights: [0.04, 0.03, 0], fade: 0.18, vignette: 0.25 },
+  { id: 'moody', name: 'Moody', swatch: ['#6b7280', '#111827'], tags: 'dark contrast desaturated', exposure: -0.15, saturation: 0.75, contrast: 0.32, shadows: [-0.01, 0, 0.03], vignette: 0.35 },
+  { id: 'bright', name: 'Bright', swatch: ['#fff7d6', '#f5b971'], tags: 'light airy happy', exposure: 0.25, lift: [0.03, 0.03, 0.03], saturation: 1.08, contrast: -0.05 },
+  { id: 'clean', name: 'Clean', swatch: ['#e9f1f7', '#9fb3c8'], tags: 'soft natural professional', exposure: 0.06, saturation: 1.05, contrast: 0.08 },
+  { id: 'sunset', name: 'Sunset', swatch: ['#ff9966', '#c2185b'], tags: 'warm pink orange evening', temperature: 0.35, tint: 0.12, saturation: 1.12, highlights: [0.06, 0.01, 0] },
+  { id: 'lavender', name: 'Lavender', swatch: ['#d8c7ff', '#5b4b8a'], tags: 'purple soft pastel', temperature: -0.1, tint: 0.15, saturation: 0.9, highlights: [0.02, 0, 0.05], fade: 0.08 },
+  { id: 'forest', name: 'Forest', swatch: ['#8fbf7f', '#1f3a2a'], tags: 'green nature', tint: -0.15, saturation: 1.05, contrast: 0.12, shadows: [-0.02, 0.03, 0] },
+  { id: 'desert', name: 'Desert', swatch: ['#e6b980', '#7a4a24'], tags: 'warm dusty orange', temperature: 0.4, saturation: 0.8, contrast: 0.1, fade: 0.08 },
+  { id: 'ocean', name: 'Ocean', swatch: ['#5ec8e5', '#0b3954'], tags: 'blue teal cool water', temperature: -0.3, saturation: 1.1, shadows: [-0.02, 0.02, 0.05] },
+  { id: 'bleach', name: 'Bleach', swatch: ['#c8c8c8', '#3d3d3d'], tags: 'bleach bypass contrast desaturated gritty', exposure: 0.05, saturation: 0.55, contrast: 0.45 },
+  { id: 'chrome', name: 'Chrome', swatch: ['#bcd4e6', '#1c2a3a'], tags: 'crisp contrast cool', temperature: -0.08, saturation: 1.12, contrast: 0.3 },
+  { id: 'sakura', name: 'Sakura', swatch: ['#ffc6d9', '#b85a7a'], tags: 'pink soft spring', exposure: 0.08, tint: 0.2, saturation: 0.95, fade: 0.06 },
+  { id: 'mint', name: 'Mint', swatch: ['#b8f2e6', '#2a7f6f'], tags: 'green fresh cool', temperature: -0.12, tint: -0.12, highlights: [-0.01, 0.03, 0.02], fade: 0.05 },
+  { id: 'autumn', name: 'Autumn', swatch: ['#e07a3c', '#5a2d17'], tags: 'warm orange red fall', temperature: 0.3, saturation: 1.1, contrast: 0.12, shadows: [0.03, 0, -0.02] },
+  { id: 'winter', name: 'Winter', swatch: ['#dbe9ff', '#3c5a80'], tags: 'cold blue snow', exposure: 0.1, temperature: -0.5, saturation: 0.75 },
+  { id: 'cocoa', name: 'Cocoa', swatch: ['#b58463', '#3b2418'], tags: 'brown warm chocolate', temperature: 0.25, saturation: 0.8, contrast: 0.1, shadows: [0.03, 0.01, -0.01] },
+  { id: 'velvet', name: 'Velvet', swatch: ['#c0392b', '#2c0b0e'], tags: 'red deep rich', tint: 0.08, saturation: 1.15, contrast: 0.22, shadows: [0.03, -0.01, 0], vignette: 0.3 },
+  { id: 'electric', name: 'Electric', swatch: ['#4f46e5', '#ec4899'], tags: 'blue pink vibrant party', saturation: 1.35, contrast: 0.2, shadows: [0, -0.02, 0.07], highlights: [0.04, 0, 0.03] },
+  { id: 'teal', name: 'Teal & Orange', swatch: ['#ff8c42', '#00798c'], tags: 'cinematic movie blockbuster', saturation: 1.05, contrast: 0.3, shadows: [-0.05, 0.03, 0.07], highlights: [0.08, 0.03, -0.06] },
+  { id: 'dreamy', name: 'Dreamy', swatch: ['#ffe5f1', '#c9b6ff'], tags: 'soft glow light pastel', exposure: 0.15, saturation: 0.9, contrast: -0.1, fade: 0.15 },
+  { id: 'lofi', name: 'Lo-fi', swatch: ['#9bb59a', '#3a4a3a'], tags: 'retro faded green chill grain', tint: -0.08, saturation: 0.8, fade: 0.2, grain: 0.4, vignette: 0.3 }
 ]
 
 export const LOOK_INDEX = new Map(LOOKS.map((l) => [l.id, l]))

@@ -86,6 +86,7 @@ export interface EffectSettings {
     clock: boolean
     badge: 'none' | 'live' | 'onair'
     border: { enabled: boolean; color: string; width: number; radius: number }
+    watermark: { enabled: boolean; corner: 'tl' | 'tr' | 'bl' | 'br'; opacity: number }
     gestures: boolean
   }
   privacy: PrivacyMode
@@ -145,6 +146,7 @@ export const defaultEffects: EffectSettings = {
     clock: false,
     badge: 'none',
     border: { enabled: false, color: '#ff7a1a', width: 6, radius: 28 },
+    watermark: { enabled: true, corner: 'br', opacity: 85 },
     gestures: false
   },
   privacy: 'off'

@@ -8,12 +8,24 @@ export function useFx(): [EffectSettings, (fn: (e: EffectSettings) => void) => v
   return [effects, update]
 }
 
+const HINTS: Record<string, string> = {
+  Looks: 'Pick a style to start. You can fine-tune everything afterwards.',
+  Adjust: 'Make the picture brighter, warmer or punchier.',
+  Filters: 'Color styles that set the mood. The slider controls the strength.',
+  Backdrop: 'Hide your room: blur it or swap in a background.',
+  Retouch: 'Subtle touch-ups that follow your face.',
+  Lighting: 'Add light where you need it, even in a dark room.',
+  Framing: "Choose what's in the shot. Tip: scroll on the preview to zoom.",
+  Effects: 'Fun styles for streams and calls.',
+  Overlays: 'Show your name, a clock or a frame on top of the video.'
+}
+
 export function PanelTitle({ title, onReset }: { title: string; onReset?: () => void }): React.JSX.Element {
   return (
-    <div className="panel-title">
-      <h2>{title}</h2>
+    <div className="panel-intro">
+      <p>{HINTS[title] ?? title}</p>
       {onReset && (
-        <button className="btn ghost sm" onClick={onReset}>
+        <button className="btn ghost sm" onClick={onReset} title="Reset this section">
           <RotateCcw size={14} /> Reset
         </button>
       )}

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 // CarrotCam phone <-> PC protocol constants.
 // Keep in sync with desktop/src/shared/protocol.ts.
 
@@ -92,25 +94,48 @@ const List<(String, String)> kFilters = [
   ('noir', 'Noir'),
   ('mono', 'Mono'),
   ('sepia', 'Sepia'),
+  ('kodak', 'Kodak Gold'),
+  ('fuji', 'Fuji Green'),
+  ('polaroid', 'Polaroid'),
+  ('moody', 'Moody'),
+  ('bright', 'Bright'),
+  ('clean', 'Clean'),
+  ('sunset', 'Sunset'),
+  ('lavender', 'Lavender'),
+  ('forest', 'Forest'),
+  ('desert', 'Desert'),
+  ('ocean', 'Ocean'),
+  ('bleach', 'Bleach'),
+  ('chrome', 'Chrome'),
+  ('sakura', 'Sakura'),
+  ('mint', 'Mint'),
+  ('autumn', 'Autumn'),
+  ('winter', 'Winter'),
+  ('cocoa', 'Cocoa'),
+  ('velvet', 'Velvet'),
+  ('electric', 'Electric'),
+  ('teal', 'Teal & Orange'),
+  ('dreamy', 'Dreamy'),
+  ('lofi', 'Lo-fi'),
 ];
 
-const List<(String, String)> kPresets = [
-  ('natural', '🌿 Natural'),
-  ('follow', '🎯 Follow Me'),
-  ('studio', '✨ Studio Glow'),
-  ('streamer', '🎮 Streamer'),
-  ('cinematic', '🎬 Cinematic'),
-  ('spotlight', '🔦 Spotlight'),
-  ('meeting', '💼 Meeting'),
-  ('retro', '📼 Retro'),
-  ('noir', '🎩 Noir'),
+const List<(String, String, IconData)> kPresets = [
+  ('natural', 'Natural', Icons.eco_rounded),
+  ('follow', 'Follow me', Icons.center_focus_strong_rounded),
+  ('studio', 'Studio Glow', Icons.auto_awesome_rounded),
+  ('streamer', 'Streamer', Icons.sports_esports_rounded),
+  ('cinematic', 'Cinematic', Icons.movie_rounded),
+  ('spotlight', 'Spotlight', Icons.flashlight_on_rounded),
+  ('meeting', 'Meeting', Icons.work_rounded),
+  ('retro', 'Retro', Icons.tv_rounded),
+  ('noir', 'Noir', Icons.dark_mode_rounded),
 ];
 
-const List<(String, String)> kReactions = [
-  ('hearts', '❤️'),
-  ('thumbs', '👍'),
-  ('confetti', '🎊'),
-  ('balloons', '🎈'),
-  ('fireworks', '🎆'),
-  ('rain', '🌧️'),
+const List<(String, String, IconData)> kReactions = [
+  ('hearts', 'Hearts', Icons.favorite_rounded),
+  ('thumbs', 'Thumbs up', Icons.thumb_up_rounded),
+  ('confetti', 'Confetti', Icons.celebration_rounded),
+  ('balloons', 'Balloons', Icons.bubble_chart_rounded),
+  ('fireworks', 'Fireworks', Icons.auto_awesome_rounded),
+  ('rain', 'Rain', Icons.water_drop_rounded),
 ];

@@ -234,10 +234,24 @@ class CarrotLink extends ChangeNotifier {
         'model': settings.model,
         'platform': Platform.operatingSystem,
         'app': app.version,
+        'transport': await _transportFor(_connectedHost),
       },
       if (target.code != null) 'code': target.code,
       if (target.token != null) 'token': target.token,
     });
+  }
+
+  /// 'usb' when the PC is reached through the phone's USB tethering interface.
+  static Future<String> _transportFor(String? host) async {
+    if (host == null) return 'wifi';
+    final prefix = host.split('.').take(3).join('.');
+    try {
+      for (final ni in await NetworkInterface.list(type: InternetAddressType.IPv4)) {
+        if (!RegExp(r'^(rndis|usb|ncm|bridge)\d*$', caseSensitive: false).hasMatch(ni.name)) continue;
+        if (ni.addresses.any((a) => a.address.startsWith('$prefix.'))) return 'usb';
+      }
+    } catch (_) {}
+    return 'wifi';
   }
 
   void _fail(String message) {
@@ -335,12 +349,14 @@ class CarrotLink extends ChangeNotifier {
         if (state == LinkState.streaming) state = LinkState.connected;
         notifyListeners();
       case 'answer':
+        if (msg['sid'] != null && msg['sid'] != _streamSeq) return; // answer to an older attempt
         await _pc?.setRemoteDescription(RTCSessionDescription(msg['sdp'] as String, 'answer'));
         for (final c in _pendingIce) {
           await _pc?.addCandidate(c);
         }
         _pendingIce.clear();
       case 'ice':
+        if (msg['sid'] != null && msg['sid'] != _streamSeq) return;
         final c = RTCIceCandidate(msg['candidate'] as String, msg['sdpMid'] as String?, msg['sdpMLineIndex'] as int?);
         if (_pc != null && (await _pc!.getRemoteDescription()) != null) {
           await _pc!.addCandidate(c);
@@ -373,7 +389,10 @@ class CarrotLink extends ChangeNotifier {
     }
   }
 
+  int _streamSeq = 0;
+
   Future<void> _startStream(Map<String, dynamic> config) async {
+    final sid = ++_streamSeq;
     final changed = config['width'] != _config['width'] || config['height'] != _config['height'] || config['fps'] != _config['fps'];
     _config = config;
     _closePeer();
@@ -395,7 +414,7 @@ class CarrotLink extends ChangeNotifier {
     _pc = pc;
     pc.onIceCandidate = (c) {
       if (c.candidate == null) return;
-      _send({'t': 'ice', 'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMLineIndex});
+      _send({'t': 'ice', 'sid': sid, 'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMLineIndex});
     };
     pc.onConnectionState = (s) {
       if (pc != _pc) return;
@@ -427,7 +446,8 @@ class CarrotLink extends ChangeNotifier {
 
     final offer = await pc.createOffer({});
     await pc.setLocalDescription(offer);
-    _send({'t': 'offer', 'sdp': offer.sdp});
+    if (sid != _streamSeq) return; // a newer start request replaced this one
+    _send({'t': 'offer', 'sid': sid, 'sdp': offer.sdp});
     _statsTimer?.cancel();
     _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) => _pollStats());
   }

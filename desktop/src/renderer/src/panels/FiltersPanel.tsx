@@ -7,31 +7,16 @@ import { idb } from '@/lib/idb'
 import { Section, Slider, Switch, stagger } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
 
-const CATEGORIES: { id: string; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'warm', label: 'Warm' },
-  { id: 'cool', label: 'Cool' },
-  { id: 'film', label: 'Film' },
-  { id: 'bw', label: 'B&W' },
-  { id: 'creative', label: 'Creative' }
-]
-
 export function FiltersPanel(): React.JSX.Element {
   const [fx, update] = useFx()
   const canvases = useRef(new Map<string, HTMLCanvasElement>())
   const file = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState('all')
-
-  const looks = useMemo(() => {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    return LOOKS.filter((l) => {
-      const hay = `${l.name} ${l.id} ${(l.tags ?? []).join(' ')}`.toLowerCase()
-      if (category !== 'all' && !(l.tags ?? []).includes(category)) return false
-      return words.every((w) => hay.includes(w))
-    })
-  }, [query, category])
-  const lookIds = looks.map((l) => l.id).join(',')
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return LOOKS
+    return LOOKS.filter((l) => `${l.name} ${l.tags ?? ''}`.toLowerCase().includes(q))
+  }, [query])
 
   // live filter thumbnails rendered by the GPU engine
   useEffect(() => {
@@ -51,10 +36,10 @@ export function FiltersPanel(): React.JSX.Element {
     }
   }, [])
 
-  // only render thumbnails for the looks that are shown
+  // only render previews for the filters that are visible
   useEffect(() => {
-    engine.requestThumbs(lookIds ? lookIds.split(',') : [])
-  }, [lookIds])
+    engine.requestThumbs(shown.map((l) => l.id))
+  }, [shown])
 
   return (
     <>
@@ -67,31 +52,22 @@ export function FiltersPanel(): React.JSX.Element {
           onChange={(v) => update((e) => void (e.filter.intensity = v))}
         />
       </Section>
-      <div className="search">
-        <Search size={15} />
+      <div className="search-box">
+        <Search size={16} />
         <input
-          className="text-input"
-          placeholder={`Search ${LOOKS.length} filters…`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+          placeholder={`Search ${LOOKS.length} filters (warm, film, black and white…)`}
         />
         {query && (
-          <button className="icon-btn clear" title="Clear search" onClick={() => setQuery('')}>
+          <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setQuery('')} title="Clear">
             <X size={14} />
           </button>
         )}
       </div>
-      <div className="filter-cats">
-        {CATEGORIES.map((c) => (
-          <button key={c.id} className={`filter-cat ${category === c.id ? 'active' : ''}`} onClick={() => setCategory(c.id)}>
-            {c.label}
-          </button>
-        ))}
-      </div>
-      {looks.length === 0 && <p className="hint" style={{ textAlign: 'center', margin: '18px 0 26px' }}>No filters match “{query}”.</p>}
+      {shown.length === 0 && <p className="hint" style={{ margin: '4px 2px 18px' }}>No filters match “{query}”.</p>}
       <div className="grid-2" style={{ marginBottom: 22 }}>
-        {looks.map((l, i) => (
+        {shown.map((l, i) => (
           <motion.button
             key={l.id}
             {...stagger(Math.min(i, 12))}

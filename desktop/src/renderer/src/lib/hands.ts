@@ -24,14 +24,14 @@ export interface HandActions {
 }
 
 /** Gestures you hold to run a command. */
-export const HAND_COMMANDS: { gesture: string; emoji: string; command: HandCommand; label: string }[] = [
-  { gesture: 'Open_Palm', emoji: '✋', command: 'reset', label: 'Reset zoom' },
-  { gesture: 'Victory', emoji: '✌️', command: 'snapshot', label: 'Snapshot' },
-  { gesture: 'Thumb_Up', emoji: '👍', command: 'nextFilter', label: 'Next filter' },
-  { gesture: 'Thumb_Down', emoji: '👎', command: 'prevFilter', label: 'Previous filter' },
-  { gesture: 'Pointing_Up', emoji: '☝️', command: 'follow', label: 'Follow Me on/off' },
-  { gesture: 'Closed_Fist', emoji: '✊', command: 'blur', label: 'Background blur on/off' },
-  { gesture: 'ILoveYou', emoji: '🤟', command: 'hearts', label: 'Hearts' }
+export const HAND_COMMANDS: { gesture: string; pose: string; command: HandCommand; label: string }[] = [
+  { gesture: 'Open_Palm', pose: 'Open palm', command: 'reset', label: 'Reset zoom' },
+  { gesture: 'Victory', pose: 'Peace sign', command: 'snapshot', label: 'Snapshot' },
+  { gesture: 'Thumb_Up', pose: 'Thumbs up', command: 'nextFilter', label: 'Next filter' },
+  { gesture: 'Thumb_Down', pose: 'Thumbs down', command: 'prevFilter', label: 'Previous filter' },
+  { gesture: 'Pointing_Up', pose: 'Point up', command: 'follow', label: 'Follow me on/off' },
+  { gesture: 'Closed_Fist', pose: 'Fist', command: 'blur', label: 'Background blur on/off' },
+  { gesture: 'ILoveYou', pose: 'Rock on', command: 'hearts', label: 'Hearts' }
 ]
 
 const HOLD_MS = 700 // how long a gesture must be held
@@ -75,7 +75,7 @@ export class HandControl {
       const zoom = clamp(this.start.zoom * (d / this.start.d), 1, 4)
       const v = this.a.view()
       this.a.setView(zoom <= 1.01 ? { zoom: 1, panX: 0, panY: 0 } : { ...v, zoom: Number(zoom.toFixed(3)) })
-      this.hint(`🤏 Zoom ${zoom.toFixed(1)}×`)
+      this.hint(`Zoom ${zoom.toFixed(1)}×`)
       return
     }
 
@@ -91,7 +91,7 @@ export class HandControl {
       const h = pinching[0]
       const v = this.a.view()
       if (v.zoom <= 1.01) {
-        this.hint('🤏 Pinch with both hands and pull apart to zoom')
+        this.hint('Pinch with both hands and pull apart to zoom')
         return
       }
       if (this.mode !== 'pan') {
@@ -103,7 +103,7 @@ export class HandControl {
         panX: Number(clamp(this.start.panX - (h.x - this.start.x) * PAN_GAIN, -1, 1).toFixed(3)),
         panY: Number(clamp(this.start.panY - (h.y - this.start.y) * PAN_GAIN, -1, 1).toFixed(3))
       })
-      this.hint('✊ Moving the view')
+      this.hint('Moving the view')
       return
     }
     if (this.mode === 'pan') this.mode = 'idle'
@@ -129,7 +129,7 @@ export class HandControl {
       this.hint(null)
       this.a.command(c.command)
     } else {
-      this.hint(`${c.emoji} ${c.label} — hold…`)
+      this.hint(`${c.pose}: ${c.label}, hold…`)
     }
   }
 

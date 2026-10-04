@@ -3,7 +3,6 @@
 import { app } from 'electron'
 import { EventEmitter } from 'node:events'
 import { randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto'
-import { execFile } from 'node:child_process'
 import { createSocket, type Socket } from 'node:dgram'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { hostname, networkInterfaces } from 'node:os'
@@ -33,52 +32,6 @@ interface TrustStore {
 }
 
 const VIRTUAL_ADAPTER = /(vEthernet|VirtualBox|VMware|Hyper-V|WSL|Loopback|Bluetooth|Tailscale|ZeroTier|vpn|TAP)/i
-// Network adapters a phone creates over a USB cable (Android "USB tethering",
-// iPhone "Personal Hotspot" over USB). Matched against the Windows adapter
-// description, or the interface name on other systems.
-const USB_ADAPTER = /(Remote NDIS|RNDIS|Apple Mobile Device Ethernet|UsbNcm|^usb\d|^rndis)/i
-
-/** Names of the network adapters that are a phone connected by USB. */
-let usbAdapters = new Set<string>()
-
-function listAdapterDescriptions(): Promise<{ Name: string; InterfaceDescription: string }[]> {
-  if (process.platform !== 'win32') return Promise.resolve([])
-  const cmd = 'Get-NetAdapter | Select-Object Name, InterfaceDescription | ConvertTo-Json -Compress'
-  return new Promise((resolve) => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], { windowsHide: true, timeout: 8000 }, (err, stdout) => {
-      if (err) return resolve([])
-      try {
-        const parsed = JSON.parse(stdout || '[]') as unknown
-        resolve((Array.isArray(parsed) ? parsed : [parsed]) as { Name: string; InterfaceDescription: string }[])
-      } catch {
-        resolve([])
-      }
-    })
-  })
-}
-
-async function refreshUsbAdapters(): Promise<void> {
-  const next = new Set<string>()
-  for (const a of await listAdapterDescriptions()) {
-    if (USB_ADAPTER.test(a.InterfaceDescription ?? '') || USB_ADAPTER.test(a.Name ?? '')) next.add(a.Name)
-  }
-  for (const name of Object.keys(networkInterfaces())) if (USB_ADAPTER.test(name)) next.add(name)
-  usbAdapters = next
-}
-
-/** This PC's addresses on USB-connected phones. */
-export function usbAddresses(): string[] {
-  const out: string[] = []
-  for (const [name, list] of Object.entries(networkInterfaces())) {
-    if (!usbAdapters.has(name)) continue
-    for (const ni of list ?? []) if (ni.family === 'IPv4' && !ni.internal) out.push(ni.address)
-  }
-  return out
-}
-
-function sameSubnet(a: string, b: string): boolean {
-  return a.split('.').slice(0, 3).join('.') === b.split('.').slice(0, 3).join('.')
-}
 
 export function lanAddresses(): string[] {
   const result: { address: string; score: number }[] = []
@@ -86,11 +39,11 @@ export function lanAddresses(): string[] {
     for (const ni of list ?? []) {
       if (ni.family !== 'IPv4' || ni.internal) continue
       let score = VIRTUAL_ADAPTER.test(name) ? 0 : 10
-      if (usbAdapters.has(name)) score += 20 // a cable beats Wi-Fi
       if (/^(Wi-?Fi|WLAN|Wireless)/i.test(name)) score += 3
       if (/^Ethernet/i.test(name)) score += 2
       if (ni.address.startsWith('192.168.')) score += 2
       if (ni.address.startsWith('169.254.')) score -= 8
+      if (/^(192\.168\.(42|44|98)\.|172\.20\.10\.|10\.42\.)/.test(ni.address) || /(NDIS|USB|iPhone|Apple)/i.test(name)) score += 20
       result.push({ address: ni.address, score })
     }
   }
@@ -104,8 +57,6 @@ export class PhoneServer extends EventEmitter {
   private mdns: Service | null = null
   private sessions = new Map<string, Session>()
   private heartbeat: NodeJS.Timeout | null = null
-  private netWatch: NodeJS.Timeout | null = null
-  private netSignature = ''
   private failures = new Map<string, { count: number; until: number }>()
   private trust: TrustStore
   private trustFile = join(app.getPath('userData'), 'trusted-devices.json')
@@ -158,8 +109,6 @@ export class PhoneServer extends EventEmitter {
     if (!this.wss) throw new Error('Could not open a port for phone connections')
     this.startDiscovery()
     this.heartbeat = setInterval(() => this.tick(), 5000)
-    await this.watchNetwork()
-    this.netWatch = setInterval(() => void this.watchNetwork(), 4000)
     log.info(`[server] listening on ${this.port}`)
     this.emit('info')
   }
@@ -177,19 +126,6 @@ export class PhoneServer extends EventEmitter {
         reject(err)
       })
     })
-  }
-
-  /** Notices new adapters (e.g. a phone plugged in by USB) and refreshes the pairing info. */
-  private async watchNetwork(): Promise<void> {
-    const ifs = networkInterfaces()
-    const signature = Object.keys(ifs)
-      .sort()
-      .map((n) => `${n}=${(ifs[n] ?? []).map((a) => a.address).join(',')}`)
-      .join(';')
-    if (signature === this.netSignature) return
-    this.netSignature = signature
-    await refreshUsbAdapters()
-    this.emit('info')
   }
 
   private startDiscovery(): void {
@@ -248,7 +184,6 @@ export class PhoneServer extends EventEmitter {
       pcName: this.pcName,
       pcId: this.trust.pcId,
       addresses,
-      usb: usbAddresses(),
       pairCode: this.pairCode,
       qr: `carrotcam://pair?${params.toString()}`
     }
@@ -398,10 +333,10 @@ export class PhoneServer extends EventEmitter {
           name: String(hello.info.name ?? 'Phone').slice(0, 64),
           model: String(hello.info.model ?? '').slice(0, 64),
           platform: String(hello.info.platform ?? '').slice(0, 16),
-          app: String(hello.info.app ?? '').slice(0, 16)
+          app: String(hello.info.app ?? '').slice(0, 16),
+          transport: hello.info.transport === 'usb' ? 'usb' : 'wifi'
         },
         address,
-        usb: usbAddresses().some((a) => sameSubnet(a, address)),
         connectedAt: Date.now()
       }
     }
@@ -415,7 +350,7 @@ export class PhoneServer extends EventEmitter {
         app: app.getVersion()
       } satisfies PcToPhone)
     )
-    log.info('[server] phone connected', session.device.info.name, address, session.device.usb ? '(USB)' : '')
+    log.info('[server] phone connected', session.device.info.name, address)
     this.emit('devices')
     if (codeOk) this.emit('info')
     return session
@@ -423,7 +358,6 @@ export class PhoneServer extends EventEmitter {
 
   async stop(): Promise<void> {
     if (this.heartbeat) clearInterval(this.heartbeat)
-    if (this.netWatch) clearInterval(this.netWatch)
     for (const s of this.sessions.values()) s.ws.close(1001, 'pc shutting down')
     this.sessions.clear()
     try {

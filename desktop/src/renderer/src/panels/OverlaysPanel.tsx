@@ -1,17 +1,16 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Clock, Frame, Hand, IdCard, Radio } from 'lucide-react'
-import type { NameTagStyle, Reaction } from '@shared/effects'
-import { engine } from '@/lib/controller'
+import { ArrowDownLeft, ArrowDownRight, ArrowUpLeft, ArrowUpRight, Clock, Frame, Hand, IdCard, Radio } from 'lucide-react'
+import type { NameTagStyle } from '@shared/effects'
 import { Section, Segmented, Slider, ToggleRow } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
 
-const REACTIONS: { kind: Reaction; emoji: string; gesture: string }[] = [
-  { kind: 'thumbs', emoji: '👍', gesture: 'Thumbs up' },
-  { kind: 'confetti', emoji: '🎊', gesture: 'Peace sign ✌️' },
-  { kind: 'hearts', emoji: '❤️', gesture: 'Rock on 🤟' },
-  { kind: 'fireworks', emoji: '🎆', gesture: 'Point up ☝️' },
-  { kind: 'balloons', emoji: '🎈', gesture: 'Open palm ✋' },
-  { kind: 'rain', emoji: '🌧️', gesture: 'Thumbs down' }
+const GESTURES: { gesture: string; result: string }[] = [
+  { gesture: 'Thumbs up', result: 'Thumbs-up burst' },
+  { gesture: 'Peace sign', result: 'Confetti' },
+  { gesture: 'Rock on', result: 'Hearts' },
+  { gesture: 'Point up', result: 'Fireworks' },
+  { gesture: 'Open palm', result: 'Balloons' },
+  { gesture: 'Thumbs down', result: 'Rain' }
 ]
 const BORDER_COLORS = ['#ff7a1a', '#ffffff', '#111111', '#22c55e', '#3b82f6', '#e11d48', '#a855f7']
 
@@ -82,6 +81,40 @@ export function OverlaysPanel(): React.JSX.Element {
         </div>
       </Section>
 
+      <Section title="Logo watermark">
+        <div className="card">
+          <ToggleRow
+            title="Show the CarrotCam logo"
+            hint="A small carrot in the corner of your video"
+            icon={<img src="logo.png" width={20} height={20} alt="" />}
+            value={o.watermark.enabled}
+            onChange={(v) => update((e) => void (e.overlay.watermark.enabled = v))}
+          />
+          {o.watermark.enabled && (
+            <div style={{ display: 'grid', gap: 8, paddingTop: 8 }}>
+              <Segmented<'tl' | 'tr' | 'bl' | 'br'>
+                value={o.watermark.corner}
+                onChange={(v) => update((e) => void (e.overlay.watermark.corner = v))}
+                options={[
+                  { value: 'tl', label: <ArrowUpLeft size={16} aria-label="Top left" /> },
+                  { value: 'tr', label: <ArrowUpRight size={16} aria-label="Top right" /> },
+                  { value: 'bl', label: <ArrowDownLeft size={16} aria-label="Bottom left" /> },
+                  { value: 'br', label: <ArrowDownRight size={16} aria-label="Bottom right" /> }
+                ]}
+              />
+              <Slider
+                label="Opacity"
+                value={o.watermark.opacity}
+                min={10}
+                max={100}
+                defaultValue={85}
+                onChange={(v) => update((e) => void (e.overlay.watermark.opacity = v))}
+              />
+            </div>
+          )}
+        </div>
+      </Section>
+
       <Section title="Badges">
         <div className="card">
           <ToggleRow
@@ -140,24 +173,29 @@ export function OverlaysPanel(): React.JSX.Element {
         </div>
       </Section>
 
-      <Section title="Reactions">
-        <div className="grid-3" style={{ marginBottom: 10 }}>
-          {REACTIONS.map((r) => (
-            <button key={r.kind} className="tile" onClick={() => engine.react(r.kind)}>
-              <span className="emoji">{r.emoji}</span>
-              <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>{r.gesture}</span>
-            </button>
-          ))}
-        </div>
+      <Section title="Gesture reactions">
         <div className="card">
           <ToggleRow
-            title="Gesture reactions"
-            hint="Show a hand gesture to trigger the effect"
+            title="React with your hands"
+            hint="Show a gesture to the camera to play an animation"
             icon={<Hand size={18} color="var(--accent)" />}
             value={o.gestures}
             onChange={(v) => update((e) => void (e.overlay.gestures = v))}
           />
+          {o.gestures && (
+            <div className="gesture-list">
+              {GESTURES.map((g) => (
+                <div key={g.gesture} className="row">
+                  <span>{g.gesture}</span>
+                  <span className="hint">{g.result}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+        <p className="hint" style={{ marginTop: 8 }}>
+          Reaction buttons are in the left sidebar under Quick actions.
+        </p>
       </Section>
     </>
   )

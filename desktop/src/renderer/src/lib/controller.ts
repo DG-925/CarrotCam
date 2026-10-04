@@ -58,7 +58,7 @@ export async function toggleHandControl(): Promise<void> {
   await updateApp({ handControl: on })
   toast(
     on
-      ? { kind: 'info', title: 'Hand control on', body: 'Pinch with both hands and pull apart to zoom. Hold ✋ to reset.' }
+      ? { kind: 'info', title: 'Hand control on', body: 'Pinch with both hands and pull apart to zoom. Hold an open palm to reset.' }
       : { kind: 'info', title: 'Hand control off' }
   )
 }
@@ -81,10 +81,10 @@ function onHandCommand(c: HandCommand): void {
         e.framing.panX = 0
         e.framing.panY = 0
       })
-      toast({ kind: 'info', title: '✋ View reset' })
+      toast({ kind: 'info', title: 'View reset' })
       break
     case 'snapshot':
-      toast({ kind: 'info', title: '✌️ Smile! Snapshot in 2 seconds' })
+      toast({ kind: 'info', title: 'Smile! Snapshot in 2 seconds' })
       setTimeout(() => void takeSnapshot(), 2000)
       break
     case 'nextFilter':
@@ -97,13 +97,13 @@ function onHandCommand(c: HandCommand): void {
       updateEffects((e) => {
         e.framing.autoFrame = !e.framing.autoFrame
       })
-      toast({ kind: 'info', title: effects.framing.autoFrame ? '☝️ Follow Me off' : '☝️ Follow Me on' })
+      toast({ kind: 'info', title: effects.framing.autoFrame ? 'Follow me off' : 'Follow me on' })
       break
     case 'blur':
       updateEffects((e) => {
         e.background.mode = e.background.mode === 'blur' ? 'none' : 'blur'
       })
-      toast({ kind: 'info', title: effects.background.mode === 'blur' ? '✊ Background blur off' : '✊ Background blur on' })
+      toast({ kind: 'info', title: effects.background.mode === 'blur' ? 'Background blur off' : 'Background blur on' })
       break
     case 'hearts':
       engine.react('hearts')
@@ -125,7 +125,7 @@ function createHandControl(): HandControl {
         e.framing.panY = v.panY
         e.framing.autoFrame = false // your hands are in charge now
       })
-      if (wasFollowing) toast({ kind: 'info', title: 'Follow Me paused', body: 'Hand zoom took over. Hold ☝️ to turn it back on.' })
+      if (wasFollowing) toast({ kind: 'info', title: 'Follow me paused', body: 'Hand zoom took over. Hold a point-up gesture to turn it back on.' })
     },
     command: onHandCommand,
     hint: (handHint) => useStore.setState({ handHint })
@@ -133,21 +133,22 @@ function createHandControl(): HandControl {
 }
 
 // ---- virtual camera -----------------------------------------------------------------
-/** The virtual camera is always on: installs the driver when needed and starts publishing. */
-export async function startVcam(): Promise<void> {
-  const driver = await invoke<DriverStatus>(IPC.driverStatus)
-  useStore.setState({ driver })
-  if (driver.supported && !driver.upToDate) {
-    const installed = await invoke<DriverStatus>(IPC.driverInstall)
-    useStore.setState({ driver: installed })
+async function setVcam(enabled: boolean): Promise<void> {
+  if (enabled) {
+    const driver = await invoke<DriverStatus>(IPC.driverStatus)
+    useStore.setState({ driver })
+    if (driver.supported && !driver.upToDate) {
+      const installed = await invoke<DriverStatus>(IPC.driverInstall)
+      useStore.setState({ driver: installed })
+    }
   }
-  const running = engine.setVcam(true)
+  const running = engine.setVcam(enabled)
   useStore.setState({
     vcam: {
       ...st().vcam,
       running,
       available: window.carrot.vcam.available(),
-      error: running ? null : (window.carrot.vcam.error() ?? 'The virtual camera could not start.')
+      error: enabled && !running ? (window.carrot.vcam.error() ?? 'The virtual camera could not start.') : null
     }
   })
   pushRemoteState()
@@ -267,7 +268,7 @@ function onDevices(devices: ConnectedDevice[]): void {
       }
       links.set(d.id, link)
       if (!prev.some((p) => p.id === d.id)) {
-        toast({ kind: 'success', title: `${d.info.name} connected`, body: d.usb ? 'Over USB cable' : d.info.model || undefined })
+        toast({ kind: 'success', title: `${d.info.name} connected`, body: d.info.model || undefined })
       }
     }
   }
@@ -286,7 +287,8 @@ function onDevices(devices: ConnectedDevice[]): void {
   // auto select a newly connected phone when it is the one we were using
   // (reconnect), when nothing is live, or when the current source failed
   const src = st().source
-  const fresh = devices.filter((d) => !prev.some((p) => p.id === d.id))
+  // a phone that reconnected (new session, same id) needs a new stream
+  const fresh = devices.filter((d) => !prev.some((p) => p.id === d.id && p.connectedAt === d.connectedAt))
   const pick =
     fresh.find((d) => src.id === `phone:${d.id}`) ??
     (src.state !== 'live' && src.state !== 'connecting' ? fresh.find((d) => app.lastSource === `phone:${d.id}`) ?? fresh[0] : undefined)
@@ -369,10 +371,6 @@ async function onRemote(deviceId: string, action: string, value: unknown): Promi
       break
     case 'record':
       await toggleRecording()
-      break
-    case 'vcam':
-      // always on; just make sure it is running
-      if (!st().vcam.running) await startVcam()
       break
     case 'preset': {
       const p = BUILT_IN_PRESETS.find((x) => x.id === value)
@@ -531,9 +529,8 @@ export async function setBackgroundImage(source: { file?: File; builtIn?: string
     blob = source.file!
     id = `user:${Date.now().toString(36)}`
     await idb.set(`bg:${id}`, blob)
-    const list = [id, ...((await idb.get<string[]>('bg:list')) ?? []).filter((x) => x !== id)]
-    await idb.set('bg:list', list.slice(0, 12))
-    for (const old of list.slice(12)) await idb.del(`bg:${old}`)
+    const list = ((await idb.get<string[]>('bg:list')) ?? []).filter((x) => x !== id)
+    await idb.set('bg:list', [id, ...list].slice(0, 8))
   }
   if (!blob) return
   await engine.setBackgroundImage(blob)
@@ -553,11 +550,11 @@ export async function userBackgrounds(): Promise<{ id: string; url: string }[]> 
   return out
 }
 
-/** Deletes a background the user added; turns the backdrop off if it was in use. */
-export async function removeUserBackground(id: string): Promise<void> {
-  const list = (await idb.get<string[]>('bg:list')) ?? []
-  await idb.set('bg:list', list.filter((x) => x !== id))
+/** Deletes a background the user added; falls back to no background if it was in use. */
+export async function deleteUserBackground(id: string): Promise<void> {
   await idb.del(`bg:${id}`)
+  const list = ((await idb.get<string[]>('bg:list')) ?? []).filter((x) => x !== id)
+  await idb.set('bg:list', list)
   if (st().effects.background.imageId === id) {
     await engine.setBackgroundImage(null)
     st().updateEffects((e) => {
@@ -565,7 +562,6 @@ export async function removeUserBackground(id: string): Promise<void> {
       if (e.background.mode === 'image') e.background.mode = 'none'
     })
   }
-  toast({ kind: 'info', title: 'Background removed' })
 }
 
 export async function selectStoredBackground(id: string): Promise<void> {
@@ -666,7 +662,7 @@ export async function initController(): Promise<void> {
   navigator.mediaDevices.addEventListener('devicechange', () => void refreshCameras())
   await refreshCameras()
 
-  await startVcam()
+  await setVcam(true)
   setInterval(() => {
     const inUse = window.carrot.vcam.isConnected()
     if (inUse !== st().vcam.inUse) useStore.setState({ vcam: { ...st().vcam, inUse } })

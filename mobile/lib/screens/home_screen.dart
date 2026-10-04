@@ -52,7 +52,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// to any paired PC as soon as the phone is plugged into it by USB.
   void _maybeAutoConnect() {
     if (!discovery.usbActive) _usbAutoTried = false;
-    if (!settings.autoConnect || !mounted || link.isConnected) return;
+    // never start a second connection while one is being set up or running
+    if (_busy || !settings.autoConnect || !mounted || (link.state != LinkState.idle && link.state != LinkState.error)) return;
     if (!_usbAutoTried) {
       final usbPc = discovery.pcs.where((p) => p.usb && (settings.pcs[p.id]?.token.isNotEmpty ?? false)).firstOrNull;
       if (usbPc != null) {
@@ -102,13 +103,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// True from the moment a connection is requested until its camera screen
+  /// closes, so discovery events can't start a second one in parallel.
+  bool _busy = false;
+
   Future<void> _connect(ConnectTarget target) async {
-    if (!await _ensureCamera()) return;
-    if (!mounted) return;
-    HapticFeedback.lightImpact();
-    link.connect(target);
-    await Navigator.of(context).push(smoothRoute(const CameraScreen()));
-    if (mounted) setState(() {});
+    if (_busy) return;
+    _busy = true;
+    try {
+      if (!await _ensureCamera()) return;
+      if (!mounted) return;
+      HapticFeedback.lightImpact();
+      link.connect(target);
+      await Navigator.of(context).push(smoothRoute(const CameraScreen()));
+      if (mounted) setState(() {});
+    } finally {
+      _busy = false;
+    }
   }
 
   Future<void> _scan() async {

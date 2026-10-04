@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { Ban, Droplet, ImagePlus, Lamp, Palette, Sparkle, Contrast, X } from 'lucide-react'
 import type { BackgroundMode } from '@shared/effects'
 import { BUILT_IN_BACKGROUNDS } from '@/lib/backgrounds'
-import { removeUserBackground, selectStoredBackground, setBackgroundImage, userBackgrounds } from '@/lib/controller'
+import { deleteUserBackground, selectStoredBackground, setBackgroundImage, userBackgrounds } from '@/lib/controller'
 import { useStore } from '@/lib/store'
 import { Section, Slider, stagger } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
@@ -23,7 +23,6 @@ export function BackgroundPanel(): React.JSX.Element {
   const [fx, update] = useFx()
   const ml = useStore((s) => s.ml)
   const [mine, setMine] = useState<{ id: string; url: string }[]>([])
-  const [listVersion, setListVersion] = useState(0)
   const file = useRef<HTMLInputElement>(null)
   const bg = fx.background
 
@@ -34,7 +33,7 @@ export function BackgroundPanel(): React.JSX.Element {
       setMine(list)
     })
     return () => urls.forEach((u) => URL.revokeObjectURL(u))
-  }, [bg.imageId, listVersion])
+  }, [bg.imageId])
 
   const setMode = (mode: BackgroundMode): void => {
     if (mode === 'image' && !bg.imageId) {
@@ -83,20 +82,17 @@ export function BackgroundPanel(): React.JSX.Element {
               />
             ))}
             {mine.map((b, i) => (
-              <motion.div key={b.id} {...stagger(i + BUILT_IN_BACKGROUNDS.length)} className="bg-item">
+              <motion.div key={b.id} {...stagger(i + BUILT_IN_BACKGROUNDS.length)} className="bg-tile-wrap">
                 <button
                   className={`bg-tile ${bg.mode === 'image' && bg.imageId === b.id ? 'active' : ''}`}
                   style={{ backgroundImage: `url(${b.url})` }}
-                  title="Your image"
                   onClick={() => void selectStoredBackground(b.id)}
+                  title="Use this background"
                 />
                 <button
-                  className="bg-remove"
-                  title="Remove this background"
-                  onClick={async () => {
-                    await removeUserBackground(b.id)
-                    setListVersion((v) => v + 1)
-                  }}
+                  className="bg-delete"
+                  title="Delete this background"
+                  onClick={() => void deleteUserBackground(b.id).then(() => setMine((m) => m.filter((x) => x.id !== b.id)))}
                 >
                   <X size={13} />
                 </button>

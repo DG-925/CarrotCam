@@ -40,23 +40,17 @@ export function FramingPanel(): React.JSX.Element {
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
                 <div className="gesture-list">
                   <div>
-                    <span className="g-emoji">🤏🤏</span>
-                    <span>
-                      <b>Zoom</b> — pinch with both hands, pull apart or push together
-                    </span>
+                    <b>Pinch with both hands</b>
+                    <span>Pull apart or push together to zoom</span>
                   </div>
                   <div>
-                    <span className="g-emoji">🤏</span>
-                    <span>
-                      <b>Move</b> — pinch with one hand and drag (while zoomed)
-                    </span>
+                    <b>Pinch with one hand</b>
+                    <span>Drag to move the view (while zoomed)</span>
                   </div>
                   {HAND_COMMANDS.map((c) => (
                     <div key={c.gesture}>
-                      <span className="g-emoji">{c.emoji}</span>
-                      <span>
-                        <b>{c.label}</b> — hold
-                      </span>
+                      <b>{c.pose}</b>
+                      <span>{c.label}</span>
                     </div>
                   ))}
                 </div>
