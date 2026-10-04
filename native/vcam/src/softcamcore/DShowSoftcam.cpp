@@ -7,6 +7,9 @@
 #include <cmath>
 #include <chrono>
 #include <ctime>
+#include <objidl.h>
+#include <gdiplus.h>
+#include <shlwapi.h>
 
 
 namespace {
@@ -181,6 +184,45 @@ DefaultFormat defaultFormat()
     return fmt;
 }
 
+// Draws the CarrotCam logo (PNG embedded as resource 101) with GDI+.
+void drawLogo(HDC dc, int cx, int cy, int size)
+{
+    HMODULE module = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCWSTR>(&drawLogo), &module);
+    HRSRC res = FindResourceW(module, MAKEINTRESOURCEW(101), RT_RCDATA);
+    if (!res)
+    {
+        return;
+    }
+    HGLOBAL handle = LoadResource(module, res);
+    const DWORD length = SizeofResource(module, res);
+    const void* data = handle ? LockResource(handle) : nullptr;
+    if (!data || !length)
+    {
+        return;
+    }
+    IStream* stream = SHCreateMemStream(static_cast<const BYTE*>(data), length);
+    if (!stream)
+    {
+        return;
+    }
+    ULONG_PTR token = 0;
+    Gdiplus::GdiplusStartupInput input;
+    if (Gdiplus::GdiplusStartup(&token, &input, nullptr) == Gdiplus::Ok)
+    {
+        {
+            Gdiplus::Bitmap bitmap(stream);
+            Gdiplus::Graphics graphics(dc);
+            graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+            graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+            graphics.DrawImage(&bitmap, cx - size / 2, cy - size / 2, size, size);
+        }
+        Gdiplus::GdiplusShutdown(token);
+    }
+    stream->Release();
+}
+
 // Draws the "open CarrotCam" card into a bottom-up 24-bit DIB.
 void drawPlaceholder(uint8_t* dib, int width, int height)
 {
@@ -209,11 +251,6 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
     const float cx = width * 0.5f;
     const float cy = height * 0.40f;
     const float r = height * 0.11f;
-    auto smooth = [](float e0, float e1, float x)
-    {
-        float t = (std::min)((std::max)((x - e0) / (e1 - e0), 0.0f), 1.0f);
-        return t * t * (3.0f - 2.0f * t);
-    };
     uint8_t* px = static_cast<uint8_t*>(bits);
     for (int y = 0; y < height; y++)
     {
@@ -227,23 +264,13 @@ void drawPlaceholder(uint8_t* dib, int width, int height)
             const float d = std::sqrt(dx * dx + dy * dy);
             const float glow = std::exp(-(d * d) / (2.0f * (r * 2.4f) * (r * 2.4f)));
             rr += 90.0f * glow; g += 36.0f * glow; b += 6.0f * glow;
-            // logo: orange disc, dark ring, orange lens with a highlight
-            const float disc = 1.0f - smooth(r - 1.0f, r + 1.0f, d);
-            const float ring = 1.0f - smooth(r * 0.62f - 1.0f, r * 0.62f + 1.0f, d);
-            const float lens = 1.0f - smooth(r * 0.40f - 1.0f, r * 0.40f + 1.0f, d);
-            const float hx = x - (cx - r * 0.14f), hy = y - (cy - r * 0.14f);
-            const float hl = 1.0f - smooth(r * 0.09f - 1.0f, r * 0.09f + 1.0f, std::sqrt(hx * hx + hy * hy));
-            auto mix = [](float a, float c, float t) { return a + (c - a) * t; };
-            rr = mix(rr, 255.0f, disc); g = mix(g, 122.0f, disc); b = mix(b, 26.0f, disc);
-            rr = mix(rr, 24.0f, ring);  g = mix(g, 18.0f, ring);  b = mix(b, 14.0f, ring);
-            rr = mix(rr, 255.0f, lens); g = mix(g, 140.0f, lens); b = mix(b, 50.0f, lens);
-            rr = mix(rr, 255.0f, hl);   g = mix(g, 236.0f, hl);   b = mix(b, 210.0f, hl);
             row[x * 3 + 0] = (uint8_t)(std::min)(b, 255.0f);
             row[x * 3 + 1] = (uint8_t)(std::min)(g, 255.0f);
             row[x * 3 + 2] = (uint8_t)(std::min)(rr, 255.0f);
         }
     }
     GdiFlush();
+    drawLogo(dc, (int)cx, (int)cy, (int)(r * 2.4f));
 
     SetBkMode(dc, TRANSPARENT);
     auto drawText = [&](const wchar_t* text, int size, int weight, COLORREF color, int top)

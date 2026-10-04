@@ -1,35 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import {
-  Camera,
-  Circle,
-  Columns2,
-  EyeOff,
-  FlipHorizontal2,
-  Maximize2,
-  RotateCw,
-  PartyPopper,
-  Square,
-  ChevronsLeftRight
-} from 'lucide-react'
-import type { PrivacyMode, Reaction } from '@shared/effects'
-import { engine, setPrivacy, takeSnapshot, toggleRecording } from '@/lib/controller'
+import { Columns2, EyeOff, FlipHorizontal2, Maximize2, RotateCw, ChevronsLeftRight } from 'lucide-react'
+import { engine } from '@/lib/controller'
 import { useStore } from '@/lib/store'
-
-const REACTIONS: { kind: Reaction; emoji: string; label: string }[] = [
-  { kind: 'hearts', emoji: '❤️', label: 'Hearts' },
-  { kind: 'thumbs', emoji: '👍', label: 'Thumbs up' },
-  { kind: 'confetti', emoji: '🎊', label: 'Confetti' },
-  { kind: 'balloons', emoji: '🎈', label: 'Balloons' },
-  { kind: 'fireworks', emoji: '🎆', label: 'Fireworks' },
-  { kind: 'rain', emoji: '🌧️', label: 'Rain' }
-]
-
-const PRIVACY: { mode: PrivacyMode; label: string; hint: string }[] = [
-  { mode: 'blur', label: 'Blur everything', hint: 'Ctrl+Alt+P' },
-  { mode: 'brb', label: 'Be right back', hint: 'Ctrl+Alt+B' },
-  { mode: 'freeze', label: 'Freeze frame', hint: 'Ctrl+Alt+F' }
-]
 
 function useElapsed(since: number): string {
   const [, tick] = useState(0)
@@ -55,7 +28,6 @@ export function Preview(): React.JSX.Element {
   const compare = useStore((s) => s.compare)
   const set = useStore((s) => s.set)
   const [split, setSplit] = useState(0.5)
-  const [popover, setPopover] = useState<'react' | 'privacy' | null>(null)
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const elapsed = useElapsed(recording.startedAt)
 
@@ -179,50 +151,6 @@ export function Preview(): React.JSX.Element {
             </>
           )}
 
-          <AnimatePresence>
-            {popover && (
-              <motion.div
-                className="toolbar"
-                style={{ bottom: 76, flexDirection: popover === 'privacy' ? 'column' : 'row', alignItems: 'stretch' }}
-                initial={{ opacity: 0, y: 8, x: '-50%' }}
-                animate={{ opacity: 1, y: 0, x: '-50%' }}
-                exit={{ opacity: 0, y: 8, x: '-50%' }}
-                transition={{ duration: 0.2 }}
-              >
-                {popover === 'react'
-                  ? REACTIONS.map((r) => (
-                      <button
-                        key={r.kind}
-                        className="tool"
-                        style={{ fontSize: 22 }}
-                        onClick={() => engine.react(r.kind)}
-                        title={r.label}
-                      >
-                        {r.emoji}
-                      </button>
-                    ))
-                  : PRIVACY.map((p) => (
-                      <button
-                        key={p.mode}
-                        className={`btn ghost sm ${effects.privacy === p.mode ? 'on' : ''}`}
-                        style={{
-                          color: '#fff',
-                          justifyContent: 'space-between',
-                          gap: 18,
-                          background: effects.privacy === p.mode ? 'var(--accent)' : undefined
-                        }}
-                        onClick={() => {
-                          setPrivacy(p.mode)
-                          setPopover(null)
-                        }}
-                      >
-                        {p.label} <span style={{ opacity: 0.6, fontSize: 11 }}>{p.hint}</span>
-                      </button>
-                    ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <div className="toolbar" onDoubleClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
             <button className={`tool ${compare ? 'on' : ''}`} onClick={() => set({ compare: !compare })}>
               <Columns2 size={19} />
@@ -242,28 +170,7 @@ export function Preview(): React.JSX.Element {
               }
             >
               <RotateCw size={18} />
-              <span className="tooltip">Rotate {effects.framing.rotate ? `(${effects.framing.rotate}°)` : ''}</span>
-            </button>
-            <button className={`tool ${popover === 'react' ? 'on' : ''}`} onClick={() => setPopover(popover === 'react' ? null : 'react')}>
-              <PartyPopper size={19} />
-              <span className="tooltip">Reactions</span>
-            </button>
-            <div className="tool-sep" />
-            <button className="tool" onClick={() => void takeSnapshot()}>
-              <Camera size={19} />
-              <span className="tooltip">Snapshot</span>
-            </button>
-            <button className={`tool ${recording.active ? 'rec' : ''}`} onClick={() => void toggleRecording()}>
-              {recording.active ? <Square size={16} fill="currentColor" /> : <Circle size={19} />}
-              <span className="tooltip">{recording.active ? 'Stop recording' : 'Record'}</span>
-            </button>
-            <div className="tool-sep" />
-            <button
-              className={`tool ${effects.privacy !== 'off' ? 'on' : ''}`}
-              onClick={() => (effects.privacy !== 'off' ? setPrivacy(effects.privacy) : setPopover(popover === 'privacy' ? null : 'privacy'))}
-            >
-              <EyeOff size={19} />
-              <span className="tooltip">{effects.privacy !== 'off' ? 'Turn privacy off' : 'Privacy'}</span>
+              <span className="tooltip">Rotate{effects.framing.rotate ? ` (${effects.framing.rotate}°)` : ''}</span>
             </button>
             <button
               className="tool"

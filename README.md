@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="desktop/build/icon.png" width="120" alt="CarrotCam logo" />
+  <img src="brand/carrot.png" width="120" alt="CarrotCam logo" />
   <h1>CarrotCam</h1>
   <p><b>Turn your phone into a buttery-smooth studio webcam for your PC.</b><br/>
   Studio lighting, retouch, filters, effects and auto framing — running on your GPU — with its own virtual camera for Discord, Zoom, Teams, Meet, OBS and every browser.</p>
@@ -33,7 +33,7 @@
 - **Lighting:** face-tracking **spotlight**, studio subject light, directional key light, **night boost** with temporal denoise
 - **Framing:** **auto framing / center stage**, zoom, pan (drag & scroll on the preview), rotate, straighten, mirror, flip
 - **Effects:** glitch, VHS, pixel, comic, sketch, halftone, thermal, night vision, poster, chromatic, twin
-- **Overlays:** animated name tag (lower third), clock, LIVE / ON AIR badge, rounded border, **reactions** (hearts, confetti, fireworks…) and **gesture reactions** (👍 ✌️ 🤟 ☝️ ✋)
+- **Overlays:** animated name tag (lower third), clock, LIVE / ON AIR badge, rounded border, **reactions** (hearts, confetti, fireworks…) and **gesture reactions** (thumbs up, peace sign, rock on, point up, open palm)
 - **Privacy:** blur everything, “Be right back” card, freeze frame — with global hotkeys
 - One-tap **Looks** presets + save your own
 - Snapshots (saved + copied to clipboard) and **recording** (MP4/WebM, optional mic)
@@ -108,4 +108,5 @@ flutter run           # or: flutter build apk --release
 
 - Virtual camera based on [softcam](https://github.com/tshino/softcam) (MIT)
 - Face, segmentation and gesture models: [MediaPipe](https://developers.google.com/mediapipe) (Apache 2.0)
+- App icon: carrot by Freepik from [Flaticon](https://www.flaticon.com/)
 - CarrotCam itself: MIT

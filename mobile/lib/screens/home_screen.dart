@@ -126,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             Text('Pair with $name', style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
-            Text('Enter the 6-digit code shown on the PC under Devices.', style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
+            Text('Enter the 6-digit code shown on the PC under Phones.', style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
             const SizedBox(height: 18),
             TextField(
               controller: ctrl,
@@ -329,7 +329,7 @@ class _Hero extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Open CarrotCam on your PC, then scan the QR code on its Devices page.',
+            'Open CarrotCam on your PC, then scan the QR code on its Phones page.',
             style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14.5, height: 1.35),
           ),
           const SizedBox(height: 20),

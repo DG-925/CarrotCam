@@ -2,22 +2,7 @@ import { useCallback, useId, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 
 export function Logo({ size = 26 }: { size?: number }): React.JSX.Element {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
-      <defs>
-        <linearGradient id="cc-logo" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffa24a" />
-          <stop offset="1" stopColor="#ff4d2e" />
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#cc-logo)" />
-      <circle cx="32" cy="34" r="15" fill="#1a120d" />
-      <circle cx="32" cy="34" r="9.5" fill="#ff8c32" />
-      <circle cx="28.5" cy="30.5" r="3" fill="#ffecd2" />
-      <path d="M38 9c-3 1-5.5 3.6-6 7 3.2.2 6.4-1.4 8-4.4" fill="#4ade80" />
-      <path d="M30 8.5c.6 2.8 1.2 5 2 7.5-2.6-.6-5-2.6-5.6-5.4" fill="#22c55e" />
-    </svg>
-  )
+  return <img src="logo.png" width={size} height={size} alt="" draggable={false} style={{ display: 'block' }} />
 }
 
 export function Section({

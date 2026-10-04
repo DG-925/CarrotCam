@@ -3,20 +3,21 @@ import { cloneEffects, defaultEffects, type EffectSettings } from '@shared/effec
 export interface Preset {
   id: string
   name: string
-  emoji: string
+  icon: string // lucide icon key, see LooksPanel
+  description?: string
   builtIn?: boolean
   effects: EffectSettings
 }
 
-function make(id: string, name: string, emoji: string, fn: (e: EffectSettings) => void): Preset {
+function make(id: string, name: string, icon: string, description: string, fn: (e: EffectSettings) => void): Preset {
   const e = cloneEffects(defaultEffects)
   fn(e)
-  return { id, name, emoji, builtIn: true, effects: e }
+  return { id, name, icon, description, builtIn: true, effects: e }
 }
 
 export const BUILT_IN_PRESETS: Preset[] = [
-  make('natural', 'Natural', '🌿', () => {}),
-  make('studio', 'Studio Glow', '✨', (e) => {
+  make('natural', 'Natural', 'leaf', 'Just your camera', () => {}),
+  make('studio', 'Studio Glow', 'sparkles', 'Soft light, smooth skin', (e) => {
     e.filter = { id: 'portrait', intensity: 80 }
     e.retouch.smooth = 45
     e.retouch.faceLight = 35
@@ -25,26 +26,26 @@ export const BUILT_IN_PRESETS: Preset[] = [
     e.background = { ...e.background, mode: 'blur', blur: 45 }
     e.autoEnhance = true
   }),
-  make('streamer', 'Streamer', '🎮', (e) => {
+  make('streamer', 'Streamer', 'gamepad', 'Blur, auto-frame, name tag', (e) => {
     e.filter = { id: 'carrot', intensity: 85 }
     e.background = { ...e.background, mode: 'blur', blur: 70 }
     e.framing.autoFrame = true
     e.adjust.sharpness = 25
     e.overlay.nameTag.enabled = true
   }),
-  make('cinematic', 'Cinematic', '🎬', (e) => {
+  make('cinematic', 'Cinematic', 'film', 'Movie colors and depth', (e) => {
     e.filter = { id: 'cinematic', intensity: 100 }
     e.background = { ...e.background, mode: 'blur', blur: 85 }
     e.adjust.vignette = 30
     e.adjust.grain = 15
   }),
-  make('spotlight', 'Spotlight', '🔦', (e) => {
+  make('spotlight', 'Spotlight', 'flashlight', 'A light that follows you', (e) => {
     e.lighting.spotlight = true
     e.lighting.spotIntensity = 70
     e.lighting.spotSize = 45
     e.filter = { id: 'dramatic', intensity: 60 }
   }),
-  make('meeting', 'Meeting', '💼', (e) => {
+  make('meeting', 'Meeting', 'briefcase', 'Clean and professional', (e) => {
     e.autoEnhance = true
     e.retouch.smooth = 25
     e.retouch.faceLight = 20
@@ -52,11 +53,11 @@ export const BUILT_IN_PRESETS: Preset[] = [
     e.framing.autoFrame = true
     e.framing.tightness = 'medium'
   }),
-  make('retro', 'Retro', '📼', (e) => {
+  make('retro', 'Retro', 'tv', 'Vintage tape vibes', (e) => {
     e.filter = { id: 'vintage', intensity: 100 }
     e.effect = { id: 'vhs', intensity: 55 }
   }),
-  make('noir', 'Noir', '🎩', (e) => {
+  make('noir', 'Noir', 'moon', 'Moody black and white', (e) => {
     e.filter = { id: 'noir', intensity: 100 }
     e.lighting.spotlight = true
     e.lighting.spotIntensity = 55

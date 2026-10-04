@@ -12,7 +12,8 @@ import {
   Wifi,
   Download,
   Video,
-  Trash2
+  Trash2,
+  Thermometer
 } from 'lucide-react'
 import { IPC, GITHUB_REPO, type ServerInfo } from '@shared/app'
 import { invoke } from '@/lib/ipc'
@@ -110,7 +111,9 @@ function DeviceCard({ id }: { id: string }): React.JSX.Element | null {
           {active && link?.codec ? <span className="badge">{link.codec}</span> : null}
           {active && link?.bitrate ? <span className="badge">{(link.bitrate / 1000).toFixed(1)} Mbps</span> : null}
           {active && link?.rtt ? <span className="badge">{link.rtt} ms</span> : null}
-          {status?.thermal && status.thermal !== 'normal' && <span className="badge warn">🌡 {status.thermal}</span>}
+          {status?.thermal && status.thermal !== 'normal' && <span className="badge warn">
+              <Thermometer size={11} /> {status.thermal}
+            </span>}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -189,8 +192,8 @@ export function DevicesPage(): React.JSX.Element {
     <div className="page-inner">
       <motion.div className="page-head" {...fadeUp}>
         <div>
-          <h1>Devices</h1>
-          <p>Use your phone as a wireless studio camera — connect over Wi-Fi in seconds.</p>
+          <h1>Phones</h1>
+          <p>Use your phone as a wireless camera. Connect it once and it reconnects by itself.</p>
         </div>
         <span className={`badge ${server?.running ? 'ok' : 'err'}`}>
           {server?.running ? `Listening on port ${server.port}` : 'Server offline'}
@@ -206,7 +209,9 @@ export function DevicesPage(): React.JSX.Element {
             </h2>
             {devices.length === 0 ? (
               <div className="empty">
-                <div style={{ fontSize: 40, marginBottom: 6 }}>📱</div>
+                <div className="empty-icon">
+                  <Smartphone size={28} />
+                </div>
                 No phones connected yet.
                 <br />
                 Scan the code on the left with the CarrotCam app.

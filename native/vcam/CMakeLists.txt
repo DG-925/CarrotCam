@@ -1,6 +1,6 @@
 # CarrotCam virtual camera driver (DirectShow source filter + sender API).
 cmake_minimum_required(VERSION 3.20)
-project(CarrotCamVCam CXX)
+project(CarrotCamVCam CXX RC)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,10 +16,11 @@ add_library(CarrotCamVCam SHARED
     ${CORE_SRC}
     src/dll/carrotcam.cpp
     src/dll/carrotcam.def
+    src/dll/carrotcam.rc
 )
 target_include_directories(CarrotCamVCam PRIVATE src src/baseclasses)
 target_compile_definitions(CarrotCamVCam PRIVATE
     UNICODE _UNICODE WIN32 NDEBUG _CRT_SECURE_NO_WARNINGS)
 target_compile_options(CarrotCamVCam PRIVATE /W3 /O2 /MP /permissive /wd4996 /wd4005)
 target_link_libraries(CarrotCamVCam PRIVATE
-    strmiids winmm ole32 oleaut32 uuid advapi32 gdi32 user32)
+    strmiids winmm ole32 oleaut32 uuid advapi32 gdi32 user32 gdiplus shlwapi)

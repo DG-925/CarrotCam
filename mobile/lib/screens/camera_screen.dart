@@ -463,8 +463,12 @@ class _RemoteSheet extends StatelessWidget {
               Text('Control CarrotCam on ${link.pcName.isEmpty ? 'your PC' : link.pcName} from here.', style: TextStyle(color: scheme.outline)),
               section('QUICK LOOKS'),
               Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final (id, label) in kPresets)
-                  ActionChip(label: Text(label), onPressed: () => link.sendRemote('preset', id)),
+                for (final (id, label, icon) in kPresets)
+                  ActionChip(
+                    avatar: Icon(icon, size: 18, color: CC.orange),
+                    label: Text(label),
+                    onPressed: () => link.sendRemote('preset', id),
+                  ),
               ]),
               section('EFFECTS'),
               GridView.count(
@@ -500,14 +504,22 @@ class _RemoteSheet extends StatelessWidget {
               ),
               section('REACTIONS'),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                for (final (id, emoji) in kReactions)
-                  InkResponse(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      link.sendRemote('reaction', id);
-                    },
-                    radius: 30,
-                    child: Padding(padding: const EdgeInsets.all(6), child: Text(emoji, style: const TextStyle(fontSize: 32))),
+                for (final (id, label, icon) in kReactions)
+                  Tooltip(
+                    message: label,
+                    child: InkResponse(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        link.sendRemote('reaction', id);
+                      },
+                      radius: 30,
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(color: CC.orange.withValues(alpha: 0.14), shape: BoxShape.circle),
+                        child: Icon(icon, color: CC.orange),
+                      ),
+                    ),
                   ),
               ]),
               section('PRIVACY'),

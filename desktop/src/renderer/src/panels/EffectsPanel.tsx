@@ -1,21 +1,35 @@
 import { motion } from 'motion/react'
+import {
+  Ban,
+  CircleDot,
+  Columns2,
+  Grid3x3,
+  Moon,
+  Palette,
+  PencilLine,
+  Rainbow,
+  Sticker,
+  Thermometer,
+  Tv,
+  Zap
+} from 'lucide-react'
 import type { StyleEffect } from '@shared/effects'
 import { Section, Slider, stagger } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
 
-const EFFECTS: { id: StyleEffect; label: string; emoji: string }[] = [
-  { id: 'none', label: 'None', emoji: '⭕' },
-  { id: 'glitch', label: 'Glitch', emoji: '👾' },
-  { id: 'vhs', label: 'VHS', emoji: '📼' },
-  { id: 'pixel', label: 'Pixel', emoji: '🟧' },
-  { id: 'comic', label: 'Comic', emoji: '💥' },
-  { id: 'sketch', label: 'Sketch', emoji: '✏️' },
-  { id: 'halftone', label: 'Halftone', emoji: '🔘' },
-  { id: 'thermal', label: 'Thermal', emoji: '🔥' },
-  { id: 'night', label: 'Night vision', emoji: '🌙' },
-  { id: 'posterize', label: 'Poster', emoji: '🎨' },
-  { id: 'chroma', label: 'Chromatic', emoji: '🌈' },
-  { id: 'mirror', label: 'Twin', emoji: '🪞' }
+const EFFECTS: { id: StyleEffect; label: string; icon: typeof Ban }[] = [
+  { id: 'none', label: 'None', icon: Ban },
+  { id: 'glitch', label: 'Glitch', icon: Zap },
+  { id: 'vhs', label: 'VHS', icon: Tv },
+  { id: 'pixel', label: 'Pixel', icon: Grid3x3 },
+  { id: 'comic', label: 'Comic', icon: Sticker },
+  { id: 'sketch', label: 'Sketch', icon: PencilLine },
+  { id: 'halftone', label: 'Halftone', icon: CircleDot },
+  { id: 'thermal', label: 'Thermal', icon: Thermometer },
+  { id: 'night', label: 'Night vision', icon: Moon },
+  { id: 'posterize', label: 'Poster', icon: Palette },
+  { id: 'chroma', label: 'Chromatic', icon: Rainbow },
+  { id: 'mirror', label: 'Twin', icon: Columns2 }
 ]
 
 export function EffectsPanel(): React.JSX.Element {
@@ -31,7 +45,7 @@ export function EffectsPanel(): React.JSX.Element {
             className={`tile ${fx.effect.id === ef.id ? 'active' : ''}`}
             onClick={() => update((e) => void (e.effect.id = ef.id))}
           >
-            <span className="emoji">{ef.emoji}</span>
+            <ef.icon size={20} />
             {ef.label}
           </motion.button>
         ))}

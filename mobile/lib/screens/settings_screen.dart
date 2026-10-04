@@ -140,7 +140,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ListTile(
                 leading: const CarrotLogo(size: 32),
                 title: const Text('CarrotCam'),
-                subtitle: Text('Version $_version · free & open source'),
+                subtitle: Text('Version $_version · free & open source\nCarrot icon by Freepik from Flaticon'),
+                isThreeLine: true,
               ),
               ListTile(
                 leading: const Icon(Icons.open_in_new_rounded, color: CC.orange),

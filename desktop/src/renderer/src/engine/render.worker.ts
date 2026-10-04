@@ -184,6 +184,11 @@ function init(msg: Extract<ToRender, { t: 'init' }>): void {
 
   overlay = new OverlayLayer(W, H)
   standby = new StandbyScreen(W, H)
+  fetch(`${assetBase}logo.png`)
+    .then((r) => r.blob())
+    .then((b) => createImageBitmap(b))
+    .then((bmp) => (standby.logo = bmp))
+    .catch(() => {})
   overlay.configure(effects.overlay, effects.privacy)
   allocateTargets()
 

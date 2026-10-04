@@ -12,13 +12,17 @@ import {
   Settings2,
   Smartphone,
   Wrench,
-  Loader2
+  Loader2,
+  ChevronDown,
+  Gauge,
+  Cpu
 } from 'lucide-react'
-import { IPC, type AppInfo, type DriverStatus, type ThemeMode, type UpdateState } from '@shared/app'
+import { IPC, type AppInfo, type AppSettings, type DriverStatus, type OutputFormat, type ThemeMode, type UpdateState } from '@shared/app'
 import { invoke } from '@/lib/ipc'
-import { updateApp } from '@/lib/controller'
+import { selectSource, updateApp } from '@/lib/controller'
 import { toast, useStore } from '@/lib/store'
-import { Segmented, Slider, ToggleRow, fadeUp, stagger } from '@/components/ui'
+import { Slider, ToggleRow, fadeUp, stagger } from '@/components/ui'
+import { Dropdown, type DropdownOption } from '@/components/Dropdown'
 
 function ThemeCards(): React.JSX.Element {
   const theme = useStore((s) => s.app.theme)
@@ -105,6 +109,58 @@ function UpdateCard({ info }: { info: AppInfo | null }): React.JSX.Element {
   )
 }
 
+const OUTPUT_FORMATS: Record<string, OutputFormat> = {
+  '720p30': { width: 1280, height: 720, fps: 30 },
+  '1080p30': { width: 1920, height: 1080, fps: 30 },
+  '720p60': { width: 1280, height: 720, fps: 60 },
+  '1080p60': { width: 1920, height: 1080, fps: 60 }
+}
+const OUTPUT_OPTIONS: DropdownOption<string>[] = [
+  { value: '720p30', label: 'HD · 30 fps', description: 'Recommended for calls', icon: Monitor },
+  { value: '1080p30', label: 'Full HD · 30 fps', description: 'Sharper, for streaming', icon: Monitor },
+  { value: '720p60', label: 'HD · 60 fps', description: 'Extra smooth motion', icon: Monitor },
+  { value: '1080p60', label: 'Full HD · 60 fps', description: 'Needs a fast PC and phone', icon: Monitor }
+]
+
+type Quality = 'smooth' | 'sharp' | 'fluid' | 'max' | 'custom'
+const QUALITY: Record<Exclude<Quality, 'custom'>, Pick<AppSettings['stream'], 'resolution' | 'fps' | 'bitrate'>> = {
+  smooth: { resolution: '720p', fps: 30, bitrate: 8000 },
+  sharp: { resolution: '1080p', fps: 30, bitrate: 12000 },
+  fluid: { resolution: '720p', fps: 60, bitrate: 12000 },
+  max: { resolution: '4k', fps: 30, bitrate: 30000 }
+}
+const QUALITY_OPTIONS: DropdownOption<Quality>[] = [
+  { value: 'smooth', label: 'Smooth', description: '720p · 30 fps · works on every phone', icon: Gauge },
+  { value: 'sharp', label: 'Sharp', description: '1080p · 30 fps · most phones', icon: Gauge },
+  { value: 'fluid', label: 'Ultra smooth', description: '720p · 60 fps · fast phones', icon: Gauge },
+  { value: 'max', label: 'Maximum', description: '4K · 30 fps · flagship phones', icon: Gauge },
+  { value: 'custom', label: 'Custom', description: 'Set in Advanced', icon: Gauge, disabled: true }
+]
+const CODEC_OPTIONS: DropdownOption<AppSettings['stream']['codec']>[] = [
+  { value: 'h264', label: 'H.264', description: 'Recommended: uses the phone hardware', icon: Cpu },
+  { value: 'vp8', label: 'VP8', description: 'Compatible, but heavier on the phone', icon: Cpu },
+  { value: 'vp9', label: 'VP9', description: 'Efficient, heavy on older phones', icon: Cpu }
+]
+
+function qualityOf(s: AppSettings['stream']): Quality {
+  for (const [k, q] of Object.entries(QUALITY)) {
+    if (q.resolution === s.resolution && q.fps === s.fps) return k as Quality
+  }
+  return 'custom'
+}
+
+function restartPhone(): void {
+  const src = useStore.getState().source
+  if (src.kind === 'phone' && src.id) void selectSource(src.id)
+}
+
+async function setQuality(q: Quality): Promise<void> {
+  if (q === 'custom') return
+  const app = useStore.getState().app
+  await updateApp({ stream: { ...app.stream, ...QUALITY[q] } })
+  restartPhone()
+}
+
 export function SettingsPage(): React.JSX.Element {
   const app = useStore((s) => s.app)
   const driver = useStore((s) => s.driver)
@@ -113,6 +169,7 @@ export function SettingsPage(): React.JSX.Element {
   const ml = useStore((s) => s.ml)
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [busy, setBusy] = useState(false)
+  const [advanced, setAdvanced] = useState(false)
 
   useEffect(() => {
     void invoke<AppInfo>(IPC.appInfo).then(setInfo)
@@ -134,7 +191,6 @@ export function SettingsPage(): React.JSX.Element {
     toast({ kind: 'info', title: 'Virtual camera removed' })
   }
 
-  const res = app.output.height >= 1080 ? '1080p' : '720p'
   return (
     <div className="page-inner">
       <motion.div className="page-head" {...fadeUp}>
@@ -181,81 +237,60 @@ export function SettingsPage(): React.JSX.Element {
             </div>
           </div>
           {vcam.error && <p className="hint" style={{ color: 'var(--danger)' }}>{vcam.error}</p>}
-          <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-            <Segmented
-              value={res}
-              onChange={(v) =>
+          <div style={{ marginTop: 12 }}>
+            <div className="side-label" style={{ marginLeft: 2 }}>Picture size</div>
+            <Dropdown
+              value={`${app.output.height}p${app.output.fps}`}
+              options={OUTPUT_OPTIONS}
+              onChange={(v) => {
+                const o = OUTPUT_FORMATS[v]
                 void updateApp({
-                  output: { ...app.output, width: v === '1080p' ? 1920 : 1280, height: v === '1080p' ? 1080 : 720 },
+                  output: o,
                   // keep the phone stream at least as sharp as the output
-                  ...(v === '1080p' && app.stream.resolution === '720p' ? { stream: { ...app.stream, resolution: '1080p' as const } } : {})
+                  ...(o.height >= 1080 && app.stream.resolution === '720p' ? { stream: { ...app.stream, resolution: '1080p' as const } } : {})
                 })
-              }
-              options={[
-                { value: '720p', label: '720p HD' },
-                { value: '1080p', label: '1080p Full HD' }
-              ]}
+              }}
             />
-            <Segmented
-              value={app.output.fps}
-              onChange={(v) => void updateApp({ output: { ...app.output, fps: v } })}
-              options={[
-                { value: 30, label: '30 fps' },
-                { value: 60, label: '60 fps' }
-              ]}
-            />
-            <p className="hint">Apps that are already using the camera may need to re-select it after changing the resolution.</p>
+            <p className="hint">Apps already using the camera may need to pick it again after a change.</p>
           </div>
         </motion.div>
 
         <motion.div className="settings-card" {...stagger(2)}>
           <h2>
-            <Smartphone size={18} /> Phone stream
+            <Smartphone size={18} /> Phone video quality
           </h2>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <Segmented
-              value={app.stream.resolution}
-              onChange={(v) => void updateApp({ stream: { ...app.stream, resolution: v } })}
-              options={[
-                { value: '720p', label: '720p' },
-                { value: '1080p', label: '1080p' },
-                { value: '4k', label: '4K' }
-              ]}
-            />
-            <Segmented
-              value={app.stream.fps}
-              onChange={(v) => void updateApp({ stream: { ...app.stream, fps: v } })}
-              options={[
-                { value: 30, label: '30 fps' },
-                { value: 60, label: '60 fps' }
-              ]}
-            />
-            <Segmented
-              value={app.stream.codec}
-              onChange={(v) => void updateApp({ stream: { ...app.stream, codec: v } })}
-              options={[
-                { value: 'h264', label: 'H.264' },
-                { value: 'vp8', label: 'VP8' },
-                { value: 'vp9', label: 'VP9' }
-              ]}
-            />
-          </div>
-          <Slider
-            label="Bitrate"
-            value={app.stream.bitrate / 1000}
-            min={2}
-            max={40}
-            defaultValue={10}
-            format={(v) => `${Math.round(v)} Mbps`}
-            onChange={(v) => void updateApp({ stream: { ...app.stream, bitrate: Math.round(v) * 1000 } })}
-          />
-          <ToggleRow
-            title="Low latency"
-            hint="Smallest delay; turn off on weak Wi-Fi for extra smoothness"
-            value={app.stream.lowLatency}
-            onChange={(v) => void updateApp({ stream: { ...app.stream, lowLatency: v } })}
-          />
-          <p className="hint">Changes apply the next time the phone starts streaming.</p>
+          <Dropdown value={qualityOf(app.stream)} options={QUALITY_OPTIONS} onChange={(v) => void setQuality(v)} />
+          <p className="hint">Changes apply right away. If the video stutters, pick Smooth.</p>
+          <button className="btn ghost sm" style={{ marginTop: 4 }} onClick={() => setAdvanced(!advanced)}>
+            <ChevronDown size={14} style={{ transform: advanced ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }} />
+            Advanced
+          </button>
+          {advanced && (
+            <div style={{ marginTop: 8 }}>
+              <div className="side-label" style={{ marginLeft: 2 }}>Video codec</div>
+              <Dropdown
+                compact
+                value={app.stream.codec}
+                options={CODEC_OPTIONS}
+                onChange={(v) => void updateApp({ stream: { ...app.stream, codec: v } }).then(restartPhone)}
+              />
+              <Slider
+                label="Bitrate"
+                value={app.stream.bitrate / 1000}
+                min={2}
+                max={40}
+                defaultValue={8}
+                format={(v) => `${Math.round(v)} Mbps`}
+                onChange={(v) => void updateApp({ stream: { ...app.stream, bitrate: Math.round(v) * 1000 } })}
+              />
+              <ToggleRow
+                title="Low latency"
+                hint="Smallest delay. Turn off on weak Wi-Fi."
+                value={app.stream.lowLatency}
+                onChange={(v) => void updateApp({ stream: { ...app.stream, lowLatency: v } })}
+              />
+            </div>
+          )}
         </motion.div>
 
         <motion.div className="settings-card" {...stagger(3)}>
@@ -319,7 +354,7 @@ export function SettingsPage(): React.JSX.Element {
           </div>
           <p className="hint" style={{ marginTop: 0 }}>
             CarrotCam is free and open source. The virtual camera driver is based on softcam (MIT), effects use MediaPipe
-            (Apache 2.0).
+            (Apache 2.0). Carrot icon by Freepik from Flaticon.
           </p>
           <button className="btn sm" onClick={() => void invoke(IPC.openExternal, `https://github.com/${info?.repo ?? ''}`)}>
             <ExternalLink size={14} /> GitHub
