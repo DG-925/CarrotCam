@@ -4,6 +4,30 @@ import { join } from 'node:path'
 import { EventEmitter } from 'node:events'
 import { defaultAppSettings, type AppSettings } from '@shared/app'
 
+const THEMES = ['system', 'dark', 'light']
+const EFFICIENCY = ['auto', 'on', 'off']
+
+/** Keeps values in range, so a bad file or patch can't break the app. */
+function sanitize(s: AppSettings): AppSettings {
+  const d = defaultAppSettings
+  const holdMs = Number(s.gestures?.holdMs)
+  return {
+    ...s,
+    theme: THEMES.includes(s.theme) ? s.theme : d.theme,
+    efficiency: EFFICIENCY.includes(s.efficiency) ? s.efficiency : d.efficiency,
+    gestures: {
+      holdMs: Number.isFinite(holdMs) ? Math.min(2000, Math.max(300, Math.round(holdMs))) : d.gestures.holdMs,
+      disabled: Array.isArray(s.gestures?.disabled) ? s.gestures.disabled.filter((g) => typeof g === 'string').slice(0, 32) : []
+    },
+    voice: {
+      enabled: !!s.voice?.enabled,
+      wakeWord: s.voice?.wakeWord !== false,
+      micId: typeof s.voice?.micId === 'string' ? s.voice.micId : null
+    },
+    lastSeenVersion: typeof s.lastSeenVersion === 'string' ? s.lastSeenVersion : ''
+  }
+}
+
 /** Tiny JSON store for app level settings (effects live in the renderer). */
 class SettingsStore extends EventEmitter {
   private file = join(app.getPath('userData'), 'settings.json')
@@ -18,7 +42,9 @@ class SettingsStore extends EventEmitter {
           ...structuredClone(defaultAppSettings),
           ...saved,
           output: { ...defaultAppSettings.output, ...saved.output },
-          stream: { ...defaultAppSettings.stream, ...saved.stream }
+          stream: { ...defaultAppSettings.stream, ...saved.stream },
+          gestures: { ...defaultAppSettings.gestures, ...saved.gestures },
+          voice: { ...defaultAppSettings.voice, ...saved.voice }
         }
         // v2: the old settings screen made it easy to pick heavy phone
         // encoder settings (VP8/60 fps/40 Mbps); reset to smooth defaults once.
@@ -30,6 +56,7 @@ class SettingsStore extends EventEmitter {
     } catch {
       this.data = structuredClone(defaultAppSettings)
     }
+    this.data = sanitize(this.data)
     // the virtual camera is always on
     this.data.vcamEnabled = true
     return this.data
@@ -40,7 +67,7 @@ class SettingsStore extends EventEmitter {
   }
 
   set(patch: Partial<AppSettings>): AppSettings {
-    this.data = { ...this.data, ...patch }
+    this.data = sanitize({ ...this.data, ...patch, vcamEnabled: true })
     this.emit('change', this.data, patch)
     this.scheduleSave()
     return this.data

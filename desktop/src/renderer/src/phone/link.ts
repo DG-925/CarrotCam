@@ -21,7 +21,8 @@ export class PhoneLink {
 
   constructor(
     readonly deviceId: string,
-    private opts: { lowLatency: boolean; codec: Codec }
+    /** read on every (re)connect, so changed settings apply on the next start */
+    private opts: () => { lowLatency: boolean; codec: Codec }
   ) {}
 
   private send(msg: PcToPhone): void {
@@ -90,7 +91,7 @@ export class PhoneLink {
     pc.ontrack = (e) => {
       if (e.track.kind !== 'video') return
       const receiver = e.receiver as RTCRtpReceiver & { jitterBufferTarget?: number | null; playoutDelayHint?: number }
-      if (this.opts.lowLatency) {
+      if (this.opts().lowLatency) {
         try {
           receiver.jitterBufferTarget = 0
         } catch {
@@ -155,7 +156,7 @@ export class PhoneLink {
       vp9: ['video/VP9', 'video/VP8', 'video/H264']
     }
     const rank = (mime: string): number => {
-      const i = order[this.opts.codec].indexOf(mime)
+      const i = order[this.opts().codec].indexOf(mime)
       return i < 0 ? 10 : i
     }
     const codecs = [...caps.codecs].sort((a, b) => rank(a.mimeType) - rank(b.mimeType))

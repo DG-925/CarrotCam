@@ -9,21 +9,25 @@ export function useFx(): [EffectSettings, (fn: (e: EffectSettings) => void) => v
 }
 
 const HINTS: Record<string, string> = {
-  Looks: 'Pick a style to start. You can fine-tune everything afterwards.',
-  Adjust: 'Make the picture brighter, warmer or punchier.',
-  Filters: 'Color styles that set the mood. The slider controls the strength.',
-  Backdrop: 'Hide your room: blur it or swap in a background.',
-  Retouch: 'Subtle touch-ups that follow your face.',
-  Lighting: 'Add light where you need it, even in a dark room.',
-  Framing: "Choose what's in the shot. Tip: scroll on the preview to zoom.",
-  Effects: 'Fun styles for streams and calls.',
-  Overlays: 'Show your name, a clock or a frame on top of the video.'
+  Looks: 'Pick a style, then fine-tune it',
+  Adjust: 'Brightness, color and detail',
+  Filters: 'Color styles that set the mood',
+  Background: 'Blur your room or replace it',
+  Retouch: 'Subtle touch-ups that follow your face',
+  Lighting: 'Add light, even in a dark room',
+  Framing: "Choose what's in the shot",
+  Effects: 'Creative styles for streams and calls',
+  Overlays: 'Name tag, logo, clock and frame'
 }
 
+/** Panel header: title, one line of help and a Reset button. */
 export function PanelTitle({ title, onReset }: { title: string; onReset?: () => void }): React.JSX.Element {
   return (
-    <div className="panel-intro">
-      <p>{HINTS[title] ?? title}</p>
+    <div className="fx-head">
+      <div>
+        <h2>{title}</h2>
+        <p>{HINTS[title] ?? ''}</p>
+      </div>
       {onReset && (
         <button className="btn ghost sm" onClick={onReset} title="Reset this section">
           <RotateCcw size={14} /> Reset
@@ -36,7 +40,7 @@ export function PanelTitle({ title, onReset }: { title: string; onReset?: () => 
 export function FaceNote(): React.JSX.Element {
   const ml = useStore((s) => s.ml)
   return (
-    <p className="hint" style={{ marginTop: 4 }}>
+    <p className="hint" style={{ marginTop: 14 }}>
       Uses on-device face tracking{ml?.delegate ? ` (${ml.delegate === 'GPU' ? 'GPU accelerated' : 'CPU'})` : ''}.
       Nothing leaves your PC.
     </p>

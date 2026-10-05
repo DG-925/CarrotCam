@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/protocol.dart';
@@ -66,7 +65,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 child: Container(
                   width: box,
                   height: box,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32)),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
                 ),
               ),
             ]),
@@ -76,12 +75,10 @@ class _ScanScreenState extends State<ScanScreen> {
               width: box,
               height: box,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: CC.orange, width: 4),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: CC.orange, width: 3),
               ),
-            )
-                .animate(onPlay: (c) => c.repeat(reverse: true))
-                .scaleXY(begin: 1, end: 1.03, duration: 900.ms, curve: Curves.easeInOut),
+            ),
           ),
           Positioned(
             left: 24,
@@ -95,7 +92,7 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                _hint ?? 'CarrotCam on your PC → Phones',
+                _hint ?? 'On the PC: camera menu → Phones and connecting',
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
               ),
             ]),

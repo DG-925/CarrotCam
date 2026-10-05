@@ -3,6 +3,7 @@ import { cloneEffects, defaultEffects, mergeEffects, type EffectSettings } from 
 import {
   defaultAppSettings,
   type AppSettings,
+  type CaptureItem,
   type ConnectedDevice,
   type DriverStatus,
   type ServerInfo,
@@ -11,8 +12,20 @@ import {
 import type { PhoneStatus } from '@shared/protocol'
 import type { EngineStats } from '@/engine/types'
 import type { Preset } from './presets'
+import type { Heard } from './voice-commands'
+import type { VoiceStatus } from './voice'
 
-export type Page = 'studio' | 'settings'
+export type Page = 'studio' | 'gallery' | 'controls' | 'settings'
+export type SettingsSection =
+  | 'general'
+  | 'camera'
+  | 'phone'
+  | 'performance'
+  | 'recording'
+  | 'shortcuts'
+  | 'updates'
+  | 'help'
+  | 'about'
 export type PanelTab =
   | 'looks'
   | 'adjust'
@@ -56,6 +69,16 @@ export interface CameraInfo {
   label: string
 }
 
+export interface VoiceState {
+  status: VoiceStatus
+  error?: string
+  /** last things heard, newest first */
+  heard: (Heard & { at: number; ran: boolean })[]
+  /** Ctrl + Alt + Space: commands without the wake word until this time */
+  listenUntil: number
+  level: number
+}
+
 const EFFECTS_KEY = 'carrotcam.effects.v1'
 const PRESETS_KEY = 'carrotcam.presets.v1'
 
@@ -82,10 +105,14 @@ function loadPresets(): Preset[] {
 
 interface StoreState {
   ready: boolean
+  version: string
   app: AppSettings
   dark: boolean
   page: Page
+  settingsSection: SettingsSection
+  controlsTab: 'hands' | 'voice'
   phonesOpen: boolean
+  whatsNewOpen: boolean
   tab: PanelTab
   effects: EffectSettings
   userPresets: Preset[]
@@ -102,8 +129,17 @@ interface StoreState {
   update: UpdateState
   recording: { active: boolean; startedAt: number }
   compare: boolean
-  /** what hand control is doing right now ("Zoom 1.8×", "Snapshot — hold…") */
+  /** what hand control is doing right now ("Zoom 1.8×", "Peace sign: Snapshot") */
   handHint: string | null
+  /** 0..1 while a gesture is being held, else null */
+  handProgress: number | null
+  voice: VoiceState
+  /** Efficiency mode in effect (Settings: auto / on / off) */
+  efficient: boolean
+  /** newest snapshots and recordings (Studio + Gallery) */
+  captures: CaptureItem[]
+  /** capture open in the Gallery viewer */
+  viewer: CaptureItem | null
   /** air drawing: the pointing finger draws instead of toggling Follow me */
   inkMode: boolean
   ml: { ready: boolean; delegate: string; error?: string } | null
@@ -126,10 +162,14 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useStore = create<StoreState>((set, get) => ({
   ready: false,
+  version: '',
   app: defaultAppSettings,
   dark: true,
   page: 'studio',
+  settingsSection: 'general',
+  controlsTab: 'hands',
   phonesOpen: false,
+  whatsNewOpen: false,
   tab: 'looks',
   effects: loadEffects(),
   userPresets: loadPresets(),
@@ -147,6 +187,11 @@ export const useStore = create<StoreState>((set, get) => ({
   recording: { active: false, startedAt: 0 },
   compare: false,
   handHint: null,
+  handProgress: null,
+  voice: { status: 'off', heard: [], listenUntil: 0, level: 0 },
+  efficient: false,
+  captures: [],
+  viewer: null,
   inkMode: false,
   ml: null,
   toasts: [],

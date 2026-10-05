@@ -9,6 +9,8 @@ export interface DropdownOption<T> {
   icon?: LucideIcon
   group?: string
   right?: ReactNode
+  /** small tag after the label (also on the button) */
+  badge?: ReactNode
   disabled?: boolean
 }
 
@@ -19,7 +21,9 @@ export function Dropdown<T extends string | number>({
   onChange,
   placeholder = 'Choose…',
   footer,
-  compact = false
+  compact = false,
+  className = '',
+  menuWidth
 }: {
   value: T | null
   options: DropdownOption<T>[]
@@ -27,6 +31,8 @@ export function Dropdown<T extends string | number>({
   placeholder?: string
   footer?: (close: () => void) => ReactNode
   compact?: boolean
+  className?: string
+  menuWidth?: number
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -73,7 +79,7 @@ export function Dropdown<T extends string | number>({
   const Icon = current?.icon
   let lastGroup: string | undefined
   return (
-    <div className={`dropdown ${open ? 'open' : ''} ${compact ? 'compact' : ''}`} ref={root} onKeyDown={onKey}>
+    <div className={`dropdown ${open ? 'open' : ''} ${compact ? 'compact' : ''} ${className}`} ref={root} onKeyDown={onKey}>
       <button
         className="dropdown-trigger"
         aria-haspopup="listbox"
@@ -87,11 +93,14 @@ export function Dropdown<T extends string | number>({
           </span>
         )}
         <span className="dd-text">
-          <span className="dd-label">{current?.label ?? placeholder}</span>
+          <span className="dd-label">
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{current?.label ?? placeholder}</span>
+            {current?.badge}
+          </span>
           {!compact && current?.description && <span className="dd-desc">{current.description}</span>}
         </span>
-        <motion.span className="dd-chevron" animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronDown size={17} />
+        <motion.span className="dd-chevron" animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.15 }}>
+          <ChevronDown size={16} />
         </motion.span>
       </button>
 
@@ -101,10 +110,11 @@ export function Dropdown<T extends string | number>({
             id={id}
             role="listbox"
             className="dropdown-menu"
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            style={menuWidth ? { width: menuWidth } : undefined}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
           >
             <div className="dd-scroll">
               {options.map((o) => {
@@ -129,7 +139,10 @@ export function Dropdown<T extends string | number>({
                         </span>
                       )}
                       <span className="dd-text">
-                        <span className="dd-label">{o.label}</span>
+                        <span className="dd-label">
+                          {o.label}
+                          {o.badge}
+                        </span>
                         {o.description && <span className="dd-desc">{o.description}</span>}
                       </span>
                       {o.right}

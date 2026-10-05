@@ -21,26 +21,29 @@ export interface HandActions {
   view: () => View
   setView: (v: View) => void
   command: (c: HandCommand) => void
-  hint: (text: string | null) => void
+  /** what is happening; progress (0..1) while a gesture is being held */
+  hint: (text: string | null, progress: number | null) => void
   /** index fingertip (source uv) while drawing with a pointing finger, else null */
   pointer: (p: [number, number] | null) => void
   drawing: () => boolean
+  /** hold time and the gestures switched off in Controls */
+  options: () => { holdMs: number; disabled: string[] }
 }
 
 /**
  * Gestures you hold to run a command. `gesture` is a MediaPipe category or one
  * of our own poses worked out from the fingers: 'Point', 'Three' and 'Heart'.
  */
-export const HAND_COMMANDS: { gesture: string; pose: string; command: HandCommand; label: string }[] = [
-  { gesture: 'Open_Palm', pose: 'Open palm', command: 'reset', label: 'Reset zoom (erases the drawing while drawing)' },
-  { gesture: 'Victory', pose: 'Peace sign', command: 'snapshot', label: 'Snapshot' },
-  { gesture: 'Three', pose: 'Three fingers', command: 'brb', label: 'Be right back on/off' },
-  { gesture: 'Thumb_Up', pose: 'Thumbs up', command: 'nextFilter', label: 'Next filter' },
-  { gesture: 'Thumb_Down', pose: 'Thumbs down', command: 'prevFilter', label: 'Previous filter' },
-  { gesture: 'Point', pose: 'Point up', command: 'follow', label: 'Follow me on/off' },
-  { gesture: 'Closed_Fist', pose: 'Fist', command: 'blur', label: 'Background blur on/off' },
-  { gesture: 'ILoveYou', pose: 'Rock on', command: 'draw', label: 'Drawing on/off' },
-  { gesture: 'Heart', pose: 'Heart with both hands', command: 'hearts', label: 'Hearts' }
+export const HAND_COMMANDS: { gesture: string; pose: string; command: HandCommand; short: string; label: string }[] = [
+  { gesture: 'Point', pose: 'Point up', command: 'follow', short: 'Follow me', label: 'Follow me on or off' },
+  { gesture: 'Victory', pose: 'Peace sign', command: 'snapshot', short: 'Snapshot', label: 'Take a snapshot (after 2 seconds)' },
+  { gesture: 'Three', pose: 'Three fingers', command: 'brb', short: 'Be right back', label: 'Be right back screen on or off' },
+  { gesture: 'Heart', pose: 'Heart with both hands', command: 'hearts', short: 'Hearts', label: 'Send hearts' },
+  { gesture: 'Thumb_Up', pose: 'Thumbs up', command: 'nextFilter', short: 'Next filter', label: 'Next filter' },
+  { gesture: 'Thumb_Down', pose: 'Thumbs down', command: 'prevFilter', short: 'Previous filter', label: 'Previous filter' },
+  { gesture: 'Closed_Fist', pose: 'Fist', command: 'blur', short: 'Background blur', label: 'Background blur on or off' },
+  { gesture: 'ILoveYou', pose: 'Rock on', command: 'draw', short: 'Drawing', label: 'Drawing on or off' },
+  { gesture: 'Open_Palm', pose: 'Open palm', command: 'reset', short: 'Reset', label: 'Reset the zoom, or erase the drawing' }
 ]
 
 type Point = [number, number]
@@ -64,7 +67,6 @@ export function isHeart(a: HandData, b: HandData, aspect: number): boolean {
   return sideBySide && dist(a.tip, b.tip) < s * 0.7 && dist(a.thumb, b.thumb) < s * 0.7 && tipsY < thumbsY - s * 0.35
 }
 
-const HOLD_MS = 700 // how long a gesture must be held
 const COOLDOWN_MS = 1500 // between two commands
 const PAN_GAIN = 4 // full pan range for a hand move of half the picture
 const SMOOTH = 0.5
@@ -78,7 +80,7 @@ export class HandControl {
   private pointing = false
   private hold = { gesture: '', since: 0 }
   private lastCommandAt = 0
-  private lastHint: string | null = null
+  private lastHint = ''
 
   constructor(private a: HandActions) {}
 
@@ -155,10 +157,12 @@ export class HandControl {
     this.point(null)
 
     // hold a gesture to run a command
+    const { holdMs, disabled } = this.a.options()
+    const enabled = (c: (typeof HAND_COMMANDS)[number] | undefined): typeof c => (c && !disabled.includes(c.gesture) ? c : undefined)
     const match = heart
-      ? { h: hands[0], c: HAND_COMMANDS.find((c) => c.gesture === 'Heart') }
+      ? { h: hands[0], c: enabled(HAND_COMMANDS.find((c) => c.gesture === 'Heart')) }
       : hands
-          .map((h) => ({ h, c: HAND_COMMANDS.find((c) => c.gesture === poseOf(h)) }))
+          .map((h) => ({ h, c: enabled(HAND_COMMANDS.find((c) => c.gesture === poseOf(h))) }))
           .find((x) => x.c && (x.c.gesture === 'Three' || x.c.gesture === 'Point' || x.h.score > 0.6))
     if (!match?.c) {
       this.hold = { gesture: '', since: 0 }
@@ -173,13 +177,13 @@ export class HandControl {
       this.hint(null)
       return
     }
-    if (now - this.hold.since >= HOLD_MS) {
+    if (now - this.hold.since >= holdMs) {
       this.lastCommandAt = now
       this.hold.since = Infinity // fire once per pose: change the gesture to fire again
       this.hint(null)
       this.a.command(c.command)
     } else {
-      this.hint(`${c.pose}: ${c.label}, hold…`)
+      this.hint(`${c.pose} · hold for ${c.short}`, (now - this.hold.since) / holdMs)
     }
   }
 
@@ -204,9 +208,10 @@ export class HandControl {
     this.a.pointer(p)
   }
 
-  private hint(text: string | null): void {
-    if (text === this.lastHint) return
-    this.lastHint = text
-    this.a.hint(text)
+  private hint(text: string | null, progress: number | null = null): void {
+    const key = `${text}|${progress === null ? '' : Math.round(progress * 12)}`
+    if (key === this.lastHint) return
+    this.lastHint = key
+    this.a.hint(text, progress === null ? null : Math.min(1, Math.max(0, progress)))
   }
 }

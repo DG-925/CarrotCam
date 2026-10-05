@@ -1,4 +1,3 @@
-import { motion } from 'motion/react'
 import { Section, Slider } from '@/components/ui'
 import { FaceNote, PanelTitle, useFx } from './common'
 
@@ -23,19 +22,16 @@ export function RetouchPanel(): React.JSX.Element {
         onReset={() => update((e) => void (e.retouch = { smooth: 0, eyes: 0, teeth: 0, faceLight: 0, slim: 0, eyeEnlarge: 0 }))}
       />
       <div className="grid-4" style={{ marginBottom: 18 }}>
-        {QUICK.map((q, i) => {
+        {QUICK.map((q) => {
           const active = q.v.smooth === r.smooth && q.v.eyes === r.eyes && q.v.teeth === r.teeth && q.v.faceLight === r.faceLight
           return (
-            <motion.button
+            <button
               key={q.label}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
               className={`tile ${active ? 'active' : ''}`}
               onClick={() => update((e) => void (e.retouch = { ...e.retouch, ...q.v }))}
             >
               {q.label}
-            </motion.button>
+            </button>
           )
         })}
       </div>

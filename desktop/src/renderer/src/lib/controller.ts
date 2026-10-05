@@ -1,5 +1,14 @@
 // Wires the engine, phones, local cameras, IPC and the store together.
-import { IPC, type AppSettings, type ConnectedDevice, type DriverStatus, type ServerInfo, type UpdateState } from '@shared/app'
+import {
+  IPC,
+  type AppInfo,
+  type AppSettings,
+  type CaptureItem,
+  type ConnectedDevice,
+  type DriverStatus,
+  type ServerInfo,
+  type UpdateState
+} from '@shared/app'
 import type { EffectSettings, PrivacyMode, Reaction } from '@shared/effects'
 import type { PhoneToPc, RemoteState, StreamConfig } from '@shared/protocol'
 import { Engine } from '@/engine/host'
@@ -7,6 +16,10 @@ import { LOOKS } from '@/engine/looks'
 import { PhoneLink } from '@/phone/link'
 import { HandControl, type HandCommand } from './hands'
 import { invoke, on } from './ipc'
+import { onThumbs } from './thumbs'
+import { VoiceControl } from './voice'
+import { VOICE_COMMANDS, type Heard, type VoiceCommand } from './voice-commands'
+import { WHATS_NEW } from './whats-new'
 import { idb } from './idb'
 import { parseCube } from './cube'
 import { renderBuiltIn } from './backgrounds'
@@ -17,11 +30,11 @@ export let engine: Engine
 const links = new Map<string, PhoneLink>()
 let localStream: MediaStream | null = null
 let recorder: MediaRecorder | null = null
-let recordChunks: Blob[] = []
 let recordMic: MediaStream | null = null
 let selectToken = 0
 let remoteTimer: ReturnType<typeof setTimeout> | null = null
 let hands: HandControl | null = null
+let voice: VoiceControl | null = null
 
 const st = () => useStore.getState()
 
@@ -42,6 +55,200 @@ export async function updateApp(patch: Partial<AppSettings>): Promise<void> {
   if (patch.theme) applyTheme()
   if (patch.output) engine.setOutput(next.output.width, next.output.height, next.output.fps)
   if (patch.handControl !== undefined) applyHandControl(next.handControl)
+  if (patch.efficiency) applyEfficiency()
+  if (patch.voice) applyVoice(next.voice, prevVoice)
+}
+let prevVoice: AppSettings['voice'] | null = null
+
+// ---- efficiency mode ----------------------------------------------------------------
+/** A slower PC: few cores or little memory. */
+export function isLowEndPc(): boolean {
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8
+  return navigator.hardwareConcurrency <= 4 || memory <= 4
+}
+
+function applyEfficiency(): void {
+  const mode = st().app.efficiency
+  const efficient = mode === 'on' || (mode === 'auto' && isLowEndPc())
+  useStore.setState({ efficient })
+  document.documentElement.dataset.efficient = efficient ? 'on' : 'off'
+  engine.setEfficient(efficient)
+}
+
+// ---- voice --------------------------------------------------------------------------
+const LISTEN_MS = 6000
+const SILENT_COMMANDS = new Set<VoiceCommand>(['blurOn', 'blurOff', 'followOn', 'followOff', 'zoomIn', 'zoomOut', 'zoomReset', 'mirror', 'noFilter', 'drawClear'])
+
+function applyVoice(v: AppSettings['voice'], prev: AppSettings['voice'] | null): void {
+  prevVoice = { ...v }
+  if (!v.enabled) {
+    if (voice?.running || st().voice.status !== 'off') voice?.stop()
+    return
+  }
+  if (!voice) {
+    voice = new VoiceControl({
+      status: (status, error) => useStore.setState({ voice: { ...st().voice, status, error, level: 0 } }),
+      heard: onHeard,
+      level: (level) => {
+        if (st().page === 'controls') useStore.setState({ voice: { ...st().voice, level } })
+      }
+    })
+  }
+  // (re)start when turned on or when the microphone changed
+  if (!voice.running || !prev?.enabled || prev.micId !== v.micId) void voice.start(v.micId)
+}
+
+/** Ctrl + Alt + Space: listen for one command without saying "Carrot" first. */
+export function listenOnce(): void {
+  if (!st().app.voice.enabled) {
+    toast({
+      kind: 'info',
+      title: 'Voice control is off',
+      body: 'Turn it on to control CarrotCam with your voice.',
+      action: { label: 'Turn on', run: () => void updateApp({ voice: { ...st().app.voice, enabled: true } }) }
+    })
+    return
+  }
+  useStore.setState({ voice: { ...st().voice, listenUntil: Date.now() + LISTEN_MS } })
+  setTimeout(() => {
+    if (st().voice.listenUntil && st().voice.listenUntil <= Date.now()) useStore.setState({ voice: { ...st().voice, listenUntil: 0 } })
+  }, LISTEN_MS + 50)
+}
+
+function onHeard(h: Heard): void {
+  const v = st().voice
+  const listening = v.listenUntil > Date.now()
+  const app = st().app.voice
+  // with the wake word required, plain commands only count right after Ctrl + Alt + Space
+  const run = !!h.command && (h.wake || listening || !app.wakeWord)
+  // keep the log useful: skip stray single words from background talk
+  const worthLogging = !!h.command || h.wake || h.text.split(' ').length >= 2
+  useStore.setState({
+    voice: {
+      ...v,
+      listenUntil: run ? 0 : v.listenUntil,
+      heard: worthLogging ? [{ ...h, at: Date.now(), ran: run }, ...v.heard].slice(0, 8) : v.heard
+    }
+  })
+  if (h.wake && !h.command) {
+    // "Carrot" on its own: listen for the command that follows
+    useStore.setState({ voice: { ...st().voice, listenUntil: Date.now() + LISTEN_MS } })
+    return
+  }
+  if (run && h.command) {
+    runVoiceCommand(h.command)
+    // commands that don't already show their own message or animation
+    const info = VOICE_COMMANDS.find((c) => c.command === h.command)
+    if (info && SILENT_COMMANDS.has(h.command)) toast({ kind: 'info', title: info.label })
+  }
+}
+
+function runVoiceCommand(c: VoiceCommand): void {
+  const rec = st().recording.active
+  switch (c) {
+    case 'snapshot':
+      void takeSnapshot()
+      break
+    case 'recordStart':
+      if (!rec) void toggleRecording()
+      break
+    case 'recordStop':
+      if (rec) void toggleRecording()
+      break
+    case 'brb':
+      setPrivacy('brb')
+      break
+    case 'privacyOn':
+      if (st().effects.privacy !== 'blur') setPrivacy('blur')
+      break
+    case 'freeze':
+      if (st().effects.privacy !== 'freeze') setPrivacy('freeze')
+      break
+    case 'privacyOff':
+      if (st().effects.privacy !== 'off') setPrivacy(st().effects.privacy)
+      break
+    case 'blurOn':
+      setBlur(true)
+      break
+    case 'blurOff':
+      setBlur(false)
+      break
+    case 'followOn':
+      setFollow(true)
+      break
+    case 'followOff':
+      setFollow(false)
+      break
+    case 'zoomIn':
+      zoomBy(1.4)
+      break
+    case 'zoomOut':
+      zoomBy(1 / 1.4)
+      break
+    case 'zoomReset':
+      zoomBy(0)
+      break
+    case 'mirror':
+      st().updateEffects((e) => void (e.framing.mirror = !e.framing.mirror))
+      break
+    case 'switchCamera':
+      switchCamera()
+      break
+    case 'nextFilter':
+      cycleFilter(1)
+      break
+    case 'prevFilter':
+      cycleFilter(-1)
+      break
+    case 'noFilter':
+      st().updateEffects((e) => void (e.filter.id = 'original'))
+      break
+    case 'hearts':
+    case 'confetti':
+    case 'fireworks':
+    case 'balloons':
+    case 'thumbs':
+    case 'rain':
+      engine.react(c)
+      break
+    case 'drawOn':
+      if (!st().inkMode) toggleDrawing()
+      break
+    case 'drawOff':
+      if (st().inkMode) toggleDrawing()
+      break
+    case 'drawClear':
+      clearDrawing()
+      break
+  }
+}
+
+// ---- shared camera actions (buttons, hands and voice) --------------------------------
+export function setFollow(on: boolean): void {
+  if (st().effects.framing.autoFrame === on) return
+  st().updateEffects((e) => {
+    e.framing.autoFrame = on
+  })
+}
+
+export function setBlur(on: boolean): void {
+  st().updateEffects((e) => {
+    if (on) e.background.mode = 'blur'
+    else if (e.background.mode === 'blur') e.background.mode = 'none'
+  })
+}
+
+/** Multiplies the zoom (0 resets it). Turns Follow me off: you are framing by hand. */
+export function zoomBy(factor: number): void {
+  st().updateEffects((e) => {
+    const z = factor === 0 ? 1 : Math.min(4, Math.max(1, e.framing.zoom * factor))
+    e.framing.zoom = Number(z.toFixed(3))
+    if (z <= 1.001) {
+      e.framing.panX = 0
+      e.framing.panY = 0
+    }
+    if (factor !== 0) e.framing.autoFrame = false
+  })
 }
 
 // ---- hand control -------------------------------------------------------------------
@@ -50,7 +257,7 @@ function applyHandControl(enabled: boolean): void {
   if (!enabled) {
     hands?.reset()
     engine.setInk(null, false)
-    useStore.setState({ handHint: null })
+    useStore.setState({ handHint: null, handProgress: null })
   }
 }
 
@@ -134,9 +341,7 @@ function onHandCommand(c: HandCommand): void {
       cycleFilter(-1)
       break
     case 'follow':
-      updateEffects((e) => {
-        e.framing.autoFrame = !e.framing.autoFrame
-      })
+      setFollow(!effects.framing.autoFrame)
       toast({ kind: 'info', title: effects.framing.autoFrame ? 'Follow me off' : 'Follow me on' })
       break
     case 'brb':
@@ -146,9 +351,7 @@ function onHandCommand(c: HandCommand): void {
       toggleDrawing()
       break
     case 'blur':
-      updateEffects((e) => {
-        e.background.mode = e.background.mode === 'blur' ? 'none' : 'blur'
-      })
+      setBlur(effects.background.mode !== 'blur')
       toast({ kind: 'info', title: effects.background.mode === 'blur' ? 'Background blur off' : 'Background blur on' })
       break
     case 'hearts':
@@ -174,9 +377,10 @@ function createHandControl(): HandControl {
       if (wasFollowing) toast({ kind: 'info', title: 'Follow me paused', body: 'Hand zoom took over. Hold a point-up gesture to turn it back on.' })
     },
     command: onHandCommand,
-    hint: (handHint) => useStore.setState({ handHint }),
+    hint: (handHint, handProgress) => useStore.setState({ handHint, handProgress }),
     pointer: (p) => engine.setInk(p, st().inkMode),
-    drawing: () => st().inkMode
+    drawing: () => st().inkMode,
+    options: () => st().app.gestures
   })
 }
 
@@ -279,8 +483,16 @@ export async function selectSource(id: string | null): Promise<void> {
       engine.setSource(track, id)
       useStore.setState({ source: { id, label, kind: 'camera', state: 'live' } })
     } catch (err) {
-      useStore.setState({ source: { id, label, kind: 'camera', state: 'error', error: String((err as Error).message) } })
-      toast({ kind: 'error', title: `Couldn't open ${label}`, body: (err as Error).message })
+      if (token !== selectToken) return // another camera was picked meanwhile
+      const e = err as Error
+      const message =
+        e.name === 'NotReadableError'
+          ? 'Another app is using this camera. Close it and try again.'
+          : e.name === 'NotAllowedError'
+            ? 'Camera access was blocked.'
+            : e.message
+      useStore.setState({ source: { id, label, kind: 'camera', state: 'error', error: message } })
+      toast({ kind: 'error', title: `Couldn't open ${label}`, body: message })
     }
   }
   pushRemoteState()
@@ -305,7 +517,7 @@ function onDevices(devices: ConnectedDevice[]): void {
   // new phones get a link
   for (const d of devices) {
     if (!links.has(d.id)) {
-      const link = new PhoneLink(d.id, { lowLatency: app.stream.lowLatency, codec: app.stream.codec })
+      const link = new PhoneLink(d.id, () => ({ lowLatency: st().app.stream.lowLatency, codec: st().app.stream.codec }))
       link.onStats = (s) => useStore.setState({ linkStats: { ...st().linkStats, [d.id]: s } })
       link.onEnded = () => {
         const src = st().source
@@ -482,9 +694,10 @@ export async function takeSnapshot(): Promise<void> {
       /* clipboard unavailable */
     }
     flash()
+    void refreshCaptures()
     toast({
       kind: 'success',
-      title: copied ? 'Snapshot saved & copied' : 'Snapshot saved',
+      title: copied ? 'Snapshot saved and copied' : 'Snapshot saved',
       body: path.split(/[\\/]/).pop(),
       action: { label: 'Show', run: () => void invoke(IPC.showItem, path) }
     })
@@ -502,7 +715,7 @@ function flash(): void {
 
 export async function toggleRecording(): Promise<void> {
   if (recorder) {
-    recorder.stop()
+    if (recorder.state !== 'inactive') recorder.stop()
     return
   }
   const fps = st().app.output.fps
@@ -517,36 +730,58 @@ export async function toggleRecording(): Promise<void> {
   }
   const types = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/webm;codecs=vp9,opus', 'video/webm']
   const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t)) ?? ''
-  recordChunks = []
-  recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: st().app.output.height >= 1080 ? 12_000_000 : 8_000_000 })
-  recorder.ondataavailable = (e) => e.data.size && recordChunks.push(e.data)
-  recorder.onstop = async () => {
-    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
-    const blob = new Blob(recordChunks, { type: mimeType || 'video/webm' })
-    recordChunks = []
+  const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
+  // every chunk goes straight to the file: memory stays flat on long recordings
+  const fileId = await invoke<number>(IPC.recordOpen, ext)
+  let writes: Promise<unknown> = Promise.resolve()
+  let failed = false
+  const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: st().app.output.height >= 1080 ? 12_000_000 : 8_000_000 })
+  recorder = rec
+  rec.ondataavailable = (e) => {
+    if (!e.data.size) return
+    writes = writes
+      .then(async () => {
+        const ok = await invoke<boolean>(IPC.recordWrite, fileId, await e.data.arrayBuffer())
+        if (!ok) throw new Error('The recording file is closed')
+      })
+      .catch((err) => {
+        if (!failed) toast({ kind: 'error', title: 'Recording could not be saved', body: String((err as Error).message ?? err) })
+        failed = true
+      })
+  }
+  rec.onstop = async () => {
     recorder = null
     stream.getTracks().forEach((t) => t.stop())
     recordMic?.getTracks().forEach((t) => t.stop())
     recordMic = null
     useStore.setState({ recording: { active: false, startedAt: 0 } })
     pushRemoteState()
-    try {
-      const path = await invoke<string>(IPC.saveFile, 'video', ext, await blob.arrayBuffer())
+    await writes
+    const path = await invoke<string | null>(IPC.recordClose, fileId)
+    void refreshCaptures()
+    if (path && !failed) {
       toast({
         kind: 'success',
         title: 'Recording saved',
         body: path.split(/[\\/]/).pop(),
         action: { label: 'Show', run: () => void invoke(IPC.showItem, path) }
       })
-    } catch (err) {
-      toast({ kind: 'error', title: 'Could not save recording', body: String(err) })
     }
   }
-  recorder.start(1000)
+  rec.start(1000)
   st().set({ compare: false })
   engine.setCompare(null)
   useStore.setState({ recording: { active: true, startedAt: Date.now() } })
   pushRemoteState()
+}
+
+/** Newest snapshots and recordings, for the Studio and the Gallery. */
+export async function refreshCaptures(): Promise<void> {
+  try {
+    useStore.setState({ captures: await invoke<CaptureItem[]>(IPC.capturesList) })
+  } catch {
+    /* folder unavailable */
+  }
 }
 
 export async function importLut(file: File): Promise<void> {
@@ -654,13 +889,16 @@ function onShortcut(action: string): void {
     case 'snapshot':
       void takeSnapshot()
       break
+    case 'voice-listen':
+      listenOnce()
+      break
   }
 }
 
 // ---- bootstrap ----------------------------------------------------------------------
 export async function initController(): Promise<void> {
-  const app = await invoke<AppSettings>(IPC.settingsGet)
-  useStore.setState({ app })
+  const [app, info] = await Promise.all([invoke<AppSettings>(IPC.settingsGet), invoke<AppInfo>(IPC.appInfo)])
+  useStore.setState({ app, version: info.version })
   applyTheme()
   media.addEventListener('change', applyTheme)
 
@@ -676,12 +914,14 @@ export async function initController(): Promise<void> {
     gesture: (name) => toast({ kind: 'info', title: `Gesture: ${name.replace(/_/g, ' ')}` }),
     hands: (list, aspect) => {
       if (st().app.handControl) hands?.update(list, aspect)
-    }
+    },
+    thumbs: onThumbs
   }
   hands = createHandControl()
   engine.setOutput(app.output.width, app.output.height, app.output.fps)
   engine.setEffects(st().effects)
   engine.setHandControl(app.handControl)
+  applyEfficiency()
   useStore.subscribe((s, p) => {
     if (s.effects !== p.effects) {
       engine.setEffects(s.effects)
@@ -689,7 +929,10 @@ export async function initController(): Promise<void> {
     }
   })
   void restoreAssets(st().effects)
-  useStore.setState({ ready: true })
+  // What's new after an update (new installs see the setup guide instead)
+  const whatsNew = app.welcomed && app.lastSeenVersion !== info.version
+  if (whatsNew && !WHATS_NEW.some((n) => n.version === info.version)) void invoke(IPC.settingsSet, { lastSeenVersion: info.version })
+  useStore.setState({ ready: true, whatsNewOpen: whatsNew && WHATS_NEW.some((n) => n.version === info.version) })
 
   // IPC events
   on(IPC.evDevices, (d: ConnectedDevice[]) => onDevices(d))
@@ -717,6 +960,8 @@ export async function initController(): Promise<void> {
   }, 1500)
 
   onDevices(devices)
+  void refreshCaptures()
+  applyVoice(app.voice, null)
   // restore the last local camera if no phone is around
   if (!st().source.id && app.lastSource?.startsWith('cam:') && st().cameras.some((c) => `cam:${c.id}` === app.lastSource)) {
     void selectSource(app.lastSource)

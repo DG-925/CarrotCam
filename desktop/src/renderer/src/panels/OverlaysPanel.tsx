@@ -194,7 +194,7 @@ export function OverlaysPanel(): React.JSX.Element {
           )}
         </div>
         <p className="hint" style={{ marginTop: 8 }}>
-          Reaction buttons are in the left sidebar under Quick actions.
+          While hand control is on, gestures run commands instead. The reaction buttons are under the picture.
         </p>
       </Section>
     </>

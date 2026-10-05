@@ -185,6 +185,11 @@ export class Engine {
     this.post({ t: 'bgImage', bitmap }, [bitmap])
   }
 
+  /** Efficiency mode for slower PCs. */
+  setEfficient(efficient: boolean): void {
+    this.post({ t: 'perf', efficient })
+  }
+
   requestThumbs(ids: string[]): void {
     this.post({ t: 'thumbs', ids })
   }

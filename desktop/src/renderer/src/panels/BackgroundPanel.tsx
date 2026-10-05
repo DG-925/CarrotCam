@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'motion/react'
 import { Ban, Droplet, ImagePlus, Lamp, Palette, Sparkle, Contrast, X } from 'lucide-react'
 import type { BackgroundMode } from '@shared/effects'
 import { BUILT_IN_BACKGROUNDS } from '@/lib/backgrounds'
 import { deleteUserBackground, selectStoredBackground, setBackgroundImage, userBackgrounds } from '@/lib/controller'
 import { useStore } from '@/lib/store'
-import { Section, Slider, stagger } from '@/components/ui'
+import { Section, Slider } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
 
 const MODES: { id: BackgroundMode; label: string; icon: typeof Ban }[] = [
@@ -45,13 +44,13 @@ export function BackgroundPanel(): React.JSX.Element {
 
   return (
     <>
-      <PanelTitle title="Backdrop" onReset={() => update((e) => void (e.background.mode = 'none'))} />
+      <PanelTitle title="Background" onReset={() => update((e) => void (e.background.mode = 'none'))} />
       <div className="grid-3" style={{ marginBottom: 18 }}>
-        {MODES.map((m, i) => (
-          <motion.button key={m.id} {...stagger(i)} className={`tile ${bg.mode === m.id ? 'active' : ''}`} onClick={() => setMode(m.id)}>
+        {MODES.map((m) => (
+          <button key={m.id} className={`tile ${bg.mode === m.id ? 'active' : ''}`} onClick={() => setMode(m.id)}>
             <m.icon size={20} />
             {m.label}
-          </motion.button>
+          </button>
         ))}
       </div>
 
@@ -71,18 +70,17 @@ export function BackgroundPanel(): React.JSX.Element {
       {(bg.mode === 'image' || bg.mode === 'none' || bg.mode === 'blur') && (
         <Section title="Virtual backgrounds">
           <div className="grid-3">
-            {BUILT_IN_BACKGROUNDS.map((b, i) => (
-              <motion.button
+            {BUILT_IN_BACKGROUNDS.map((b) => (
+              <button
                 key={b.id}
-                {...stagger(i)}
                 className={`bg-tile ${bg.mode === 'image' && bg.imageId === b.id ? 'active' : ''}`}
                 style={{ background: b.preview }}
                 title={b.name}
                 onClick={() => void setBackgroundImage({ builtIn: b.id })}
               />
             ))}
-            {mine.map((b, i) => (
-              <motion.div key={b.id} {...stagger(i + BUILT_IN_BACKGROUNDS.length)} className="bg-tile-wrap">
+            {mine.map((b) => (
+              <div key={b.id} className="bg-tile-wrap">
                 <button
                   className={`bg-tile ${bg.mode === 'image' && bg.imageId === b.id ? 'active' : ''}`}
                   style={{ backgroundImage: `url(${b.url})` }}
@@ -96,7 +94,7 @@ export function BackgroundPanel(): React.JSX.Element {
                 >
                   <X size={13} />
                 </button>
-              </motion.div>
+              </div>
             ))}
             <button className="bg-tile add" onClick={() => file.current?.click()} title="Add your own image">
               <ImagePlus size={20} />

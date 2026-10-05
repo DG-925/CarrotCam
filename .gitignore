@@ -4,6 +4,7 @@ desktop/out/
 desktop/dist/
 desktop/src/renderer/public/models/
 desktop/src/renderer/public/mediapipe/
+desktop/src/renderer/public/vosk/
 desktop/resources/vcam/
 
 # native driver build output

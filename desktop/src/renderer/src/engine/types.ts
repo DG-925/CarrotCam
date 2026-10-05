@@ -88,6 +88,8 @@ export type ToRender =
   | { t: 'handControl'; enabled: boolean }
   | { t: 'ink'; pointer: [number, number] | null; drawing: boolean }
   | { t: 'inkClear' }
+  /** Efficiency mode: lighter AI and thumbnail work for slower PCs */
+  | { t: 'perf'; efficient: boolean }
 
 export type FromRender =
   | { t: 'ready'; gpu: string }

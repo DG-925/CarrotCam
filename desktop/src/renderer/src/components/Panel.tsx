@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from 'motion/react'
-import { Crop, Image, Layers, Palette, ScanFace, SlidersHorizontal, Sparkles, SunMedium, Wand2 } from 'lucide-react'
+import { Crop, Image, Layers, Palette, ScanFace, SlidersHorizontal, Sparkles, SunMedium, WandSparkles } from 'lucide-react'
+import type { EffectSettings } from '@shared/effects'
 import { useStore, type PanelTab } from '@/lib/store'
 import { LooksPanel } from '@/panels/LooksPanel'
 import { AdjustPanel } from '@/panels/AdjustPanel'
@@ -10,7 +10,6 @@ import { RetouchPanel } from '@/panels/RetouchPanel'
 import { LightingPanel } from '@/panels/LightingPanel'
 import { FramingPanel } from '@/panels/FramingPanel'
 import { OverlaysPanel } from '@/panels/OverlaysPanel'
-import { Dropdown, type DropdownOption } from './Dropdown'
 
 const VIEWS: Record<PanelTab, () => React.JSX.Element> = {
   looks: LooksPanel,
@@ -24,42 +23,69 @@ const VIEWS: Record<PanelTab, () => React.JSX.Element> = {
   overlays: OverlaysPanel
 }
 
-export const CATEGORIES: DropdownOption<PanelTab>[] = [
-  { value: 'looks', label: 'Looks', description: 'One-tap styles', icon: Sparkles },
-  { value: 'adjust', label: 'Adjust', description: 'Brightness, color and detail', icon: SlidersHorizontal },
-  { value: 'filters', label: 'Filters', description: 'Color grades and LUTs', icon: Palette },
-  { value: 'background', label: 'Background', description: 'Blur or replace it', icon: Image },
-  { value: 'retouch', label: 'Retouch', description: 'Smooth skin, brighter eyes', icon: ScanFace },
-  { value: 'lighting', label: 'Lighting', description: 'Spotlight and night boost', icon: SunMedium },
-  { value: 'framing', label: 'Framing', description: 'Zoom, auto-frame, rotate', icon: Crop },
-  { value: 'effects', label: 'Effects', description: 'Creative styles', icon: Wand2 },
-  { value: 'overlays', label: 'Overlays', description: 'Name tag, clock, border', icon: Layers }
+export const CATEGORIES: { value: PanelTab; label: string; icon: typeof Sparkles }[] = [
+  { value: 'looks', label: 'Looks', icon: Sparkles },
+  { value: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
+  { value: 'filters', label: 'Filters', icon: Palette },
+  { value: 'background', label: 'Background', icon: Image },
+  { value: 'retouch', label: 'Retouch', icon: ScanFace },
+  { value: 'lighting', label: 'Lighting', icon: SunMedium },
+  { value: 'framing', label: 'Framing', icon: Crop },
+  { value: 'effects', label: 'Effects', icon: WandSparkles },
+  { value: 'overlays', label: 'Overlays', icon: Layers }
 ]
+
+/** Sections with something switched on get a dot on the rail. */
+function inUse(tab: PanelTab, e: EffectSettings): boolean {
+  switch (tab) {
+    case 'adjust':
+      return e.autoEnhance || Object.values(e.adjust).some((v) => v !== 0)
+    case 'filters':
+      return e.filter.id !== 'original' || (e.lut.enabled && !!e.lut.name)
+    case 'background':
+      return e.background.mode !== 'none'
+    case 'retouch':
+      return Object.values(e.retouch).some((v) => v > 0)
+    case 'lighting':
+      return e.lighting.spotlight || e.lighting.studio > 0 || e.lighting.keyLight > 0 || e.lowLight > 0
+    case 'framing':
+      return e.framing.autoFrame || e.framing.zoom > 1.01 || e.framing.rotate !== 0 || e.framing.flip || Math.abs(e.framing.tilt) > 0.05
+    case 'effects':
+      return e.effect.id !== 'none'
+    case 'overlays':
+      return e.overlay.nameTag.enabled || e.overlay.clock || e.overlay.badge !== 'none' || e.overlay.border.enabled || e.overlay.watermark.enabled
+    default:
+      return false
+  }
+}
 
 export function Panel(): React.JSX.Element {
   const tab = useStore((s) => s.tab)
-  const setTab = useStore((s) => s.setTab)
+  // panels (and their live previews) only run while the Studio is shown
+  const visible = useStore((s) => s.page === 'studio')
   const View = VIEWS[tab] ?? LooksPanel
-
   return (
-    <aside className="panel">
-      <div className="panel-head">
-        <div className="side-label">Effects</div>
-        <Dropdown value={tab} options={CATEGORIES} onChange={setTab} />
-      </div>
-      <div className="panel-body">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <View />
-          </motion.div>
-        </AnimatePresence>
+    <aside className="fx-panel">
+      <div className="fx-body" key={tab}>
+        {visible && <View />}
       </div>
     </aside>
+  )
+}
+
+export function Rail(): React.JSX.Element {
+  const tab = useStore((s) => s.tab)
+  const setTab = useStore((s) => s.setTab)
+  const effects = useStore((s) => s.effects)
+  return (
+    <nav className="rail" aria-label="Effects">
+      {CATEGORIES.map((c) => (
+        <button key={c.value} className={`rail-item ${tab === c.value ? 'active' : ''}`} onClick={() => setTab(c.value)} title={c.label}>
+          <c.icon size={20} />
+          <span>{c.label}</span>
+          {tab !== c.value && inUse(c.value, effects) && <span className="rail-dot" />}
+        </button>
+      ))}
+    </nav>
   )
 }

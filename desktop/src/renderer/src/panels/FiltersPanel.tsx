@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'motion/react'
+import { useMemo, useRef, useState } from 'react'
 import { FileUp, Search, X } from 'lucide-react'
 import { LOOKS } from '@/engine/looks'
 import { engine, importLut } from '@/lib/controller'
 import { idb } from '@/lib/idb'
-import { Section, Slider, Switch, stagger } from '@/components/ui'
+import { useThumbs } from '@/lib/thumbs'
+import { Section, Slider, Switch } from '@/components/ui'
 import { PanelTitle, useFx } from './common'
 
 export function FiltersPanel(): React.JSX.Element {
   const [fx, update] = useFx()
-  const canvases = useRef(new Map<string, HTMLCanvasElement>())
   const file = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const shown = useMemo(() => {
@@ -18,78 +17,53 @@ export function FiltersPanel(): React.JSX.Element {
     return LOOKS.filter((l) => `${l.name} ${l.tags ?? ''}`.toLowerCase().includes(q))
   }, [query])
 
-  // live filter thumbnails rendered by the GPU engine
-  useEffect(() => {
-    const prev = engine.events.thumbs
-    engine.events.thumbs = ({ bitmap, ids, cellW, cellH, cols }) => {
-      ids.forEach((id, i) => {
-        const c = canvases.current.get(id)
-        const ctx = c?.getContext('2d')
-        if (!c || !ctx) return
-        ctx.drawImage(bitmap, (i % cols) * cellW, Math.floor(i / cols) * cellH, cellW, cellH, 0, 0, c.width, c.height)
-      })
-      bitmap.close()
-    }
-    return () => {
-      engine.requestThumbs([])
-      engine.events.thumbs = prev
-    }
-  }, [])
-
-  // only render previews for the filters that are visible
-  useEffect(() => {
-    engine.requestThumbs(shown.map((l) => l.id))
-  }, [shown])
+  // live previews, only for the filters that are visible
+  const thumb = useThumbs(shown.map((l) => l.id))
 
   return (
     <>
       <PanelTitle title="Filters" onReset={() => update((e) => void (e.filter = { id: 'original', intensity: 100 }))} />
-      <Section title="Intensity">
+      {fx.filter.id !== 'original' && (
         <Slider
-          label={LOOKS.find((l) => l.id === fx.filter.id)?.name ?? 'Filter'}
+          label={`${LOOKS.find((l) => l.id === fx.filter.id)?.name ?? 'Filter'} strength`}
           value={fx.filter.intensity}
           defaultValue={100}
+          format={(v) => `${Math.round(v)}%`}
           onChange={(v) => update((e) => void (e.filter.intensity = v))}
         />
-      </Section>
-      <div className="search-box">
+      )}
+      <div className="search-box" style={{ marginTop: 6 }}>
         <Search size={16} />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={`Search ${LOOKS.length} filters (warm, film, black and white…)`}
+          placeholder={`Search ${LOOKS.length} filters: warm, film, black and white…`}
         />
         {query && (
-          <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setQuery('')} title="Clear">
+          <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setQuery('')} title="Clear the search">
             <X size={14} />
           </button>
         )}
       </div>
       {shown.length === 0 && <p className="hint" style={{ margin: '4px 2px 18px' }}>No filters match “{query}”.</p>}
-      <div className="grid-2" style={{ marginBottom: 22 }}>
-        {shown.map((l, i) => (
-          <motion.button
+      <div className="filter-grid">
+        {shown.map((l) => (
+          <button
             key={l.id}
-            {...stagger(Math.min(i, 12))}
             className={`filter-tile ${fx.filter.id === l.id ? 'active' : ''}`}
             onClick={() => update((e) => void (e.filter.id = l.id))}
           >
-            <div className="swatch" style={{ background: `linear-gradient(135deg, ${l.swatch[0]}, ${l.swatch[1]})` }} />
-            <canvas
-              width={192}
-              height={108}
-              ref={(c) => {
-                if (c) canvases.current.set(l.id, c)
-                else canvases.current.delete(l.id)
-              }}
-            />
+            <span className="fthumb">
+              <span className="swatch" style={{ background: `linear-gradient(135deg, ${l.swatch[0]}, ${l.swatch[1]})` }} />
+              <canvas width={192} height={108} ref={thumb(l.id)} />
+            </span>
             <span className="name">{l.name}</span>
-          </motion.button>
+          </button>
         ))}
       </div>
 
       <Section title="Custom LUT (.cube)">
-        <div className="card">
+        <div className="card" style={{ padding: '10px 14px 12px' }}>
           {fx.lut.name ? (
             <>
               <div className="row">

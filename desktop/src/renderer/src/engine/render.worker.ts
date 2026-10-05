@@ -99,6 +99,9 @@ let snapshotPending = false
 let thumbIds: string[] | null = null
 let lastThumbsAt = 0
 let thumbCursor = 0
+let thumbsSent = 0
+// Efficiency mode: the AI runs at a lower rate and size, thumbnails refresh slowly
+let efficient = false
 
 let face: FaceData | null = null
 let faceAt = 0
@@ -308,13 +311,22 @@ function feedMl(frame: VideoFrame, now: number): void {
   if (!mlPort || mlBusy) return
   const cfg = mlConfig()
   if (!cfg.segmentation && !cfg.face && !cfg.gestures && !cfg.hands) return
-  const minGap = cfg.segmentation || cfg.face ? 0 : cfg.hands ? 60 : 90
+  const minGap = efficient
+    ? cfg.segmentation || cfg.face
+      ? 66 // ~15 runs a second; masks and faces are smoothed in between
+      : 110
+    : cfg.segmentation || cfg.face
+      ? 0
+      : cfg.hands
+        ? 60
+        : 90
   if (now - mlSentAt < minGap) return
   mlBusy = true
   mlSentAt = now
   const aspect = frame.displayWidth / frame.displayHeight
-  const tw = aspect >= 1 ? 512 : Math.round(512 * aspect)
-  const th = aspect >= 1 ? Math.round(512 / aspect) : 512
+  const size = efficient ? 384 : 512
+  const tw = aspect >= 1 ? size : Math.round(size * aspect)
+  const th = aspect >= 1 ? Math.round(size / aspect) : size
   const clone = frame.clone()
   createImageBitmap(clone, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'medium' })
     .then((bitmap) => {
@@ -440,6 +452,7 @@ async function runSource(stream: ReadableStream<VideoFrame>): Promise<void> {
   framer.reset()
   denValid = false
   maskValid = false
+  thumbsSent = 0 // new picture: refresh the previews right away
   try {
     for (;;) {
       const { value, done } = await reader.read()
@@ -719,8 +732,12 @@ function render(now: number): void {
     autoGain = [1, 1, 1]
   }
 
-  if (thumbIds && now - lastThumbsAt > 300) {
+  // the first passes come quickly (so every look gets a picture), then the
+  // previews only refresh every few seconds: they are small and cheap to skip
+  const thumbGap = thumbsSent < Math.ceil((thumbIds?.length ?? 0) / 24) + 1 ? 250 : efficient ? 6000 : 2500
+  if (thumbIds && now - lastThumbsAt > thumbGap) {
     lastThumbsAt = now
+    thumbsSent++
     renderThumbs(baseTex)
   }
 
@@ -1069,7 +1086,11 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
     case 'thumbs':
       thumbIds = msg.ids.length ? msg.ids : null
       thumbCursor = 0
+      thumbsSent = 0
       lastThumbsAt = 0
+      break
+    case 'perf':
+      efficient = msg.efficient
       break
     case 'ink':
       onInk(msg.pointer, msg.drawing)

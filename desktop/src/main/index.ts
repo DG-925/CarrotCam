@@ -13,16 +13,30 @@ import {
   Tray
 } from 'electron'
 import { execFile } from 'node:child_process'
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs'
-import { join, normalize, sep } from 'node:path'
+import { writeFileSync } from 'node:fs'
+import { cpus, totalmem, release as osRelease } from 'node:os'
+import { dirname, join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import log from 'electron-log/main'
-import { IPC, GITHUB_REPO, type AppSettings, type TrayAction, type AppInfo } from '@shared/app'
+import { IPC, GITHUB_REPO, type AppSettings, type TrayAction, type AppInfo, type CaptureItem, type Diagnostics } from '@shared/app'
 import type { PcToPhone } from '@shared/protocol'
 import { settings } from './settings'
 import { driverStatus, ensureDriver, installDriver, senderDllPath, uninstallDriver, writeDriverFormat } from './driver'
 import { PhoneServer } from './server'
 import { checkForUpdates, downloadUpdate, initUpdater, installUpdate, setAutoDownload, updateState } from './updater'
+import {
+  MEDIA_SCHEME,
+  closeAllRecordings,
+  deleteCapture,
+  listCaptures,
+  newCaptureFile,
+  openCapture,
+  openCaptureFolder,
+  recordClose,
+  recordOpen,
+  recordWrite,
+  serveMedia
+} from './captures'
 
 log.initialize()
 log.transports.file.level = 'info'
@@ -40,17 +54,29 @@ protocol.registerSchemesAsPrivileged([
   {
     scheme: 'app',
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
-  }
+  },
+  MEDIA_SCHEME
 ])
 
 const startHidden = process.argv.includes('--hidden')
+// Run by the installer: register the virtual camera for this user, then exit.
+const installDriverOnly = process.argv.includes('--install-driver')
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
 let quitting = false
 let trayHintShown = false
 const server = new PhoneServer()
 
-if (!app.requestSingleInstanceLock()) {
+if (installDriverOnly) {
+  // never keep the installer waiting
+  setTimeout(() => app.exit(0), 30_000).unref()
+  app
+    .whenReady()
+    .then(() => (process.platform === 'win32' ? installDriver() : null))
+    .then((status) => log.info('[driver] installer registration', status))
+    .catch((err) => log.error('[driver] installer registration failed', err))
+    .finally(() => app.exit(0))
+} else if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => showWindow())
@@ -61,10 +87,13 @@ function iconPath(): string {
   return app.isPackaged ? join(process.resourcesPath, 'icon.ico') : join(app.getAppPath(), 'build', 'icon.ico')
 }
 
+// keep in sync with --title / --bg in global.css
+const DARK_TITLE = '#0b0b0d'
+const LIGHT_TITLE = '#f3f3f5'
 function titleBarColors(dark: boolean): { color: string; symbolColor: string; height: number } {
   return dark
-    ? { color: '#0e0d0c', symbolColor: '#f5f1ec', height: 44 }
-    : { color: '#f6f3ef', symbolColor: '#1d1a17', height: 44 }
+    ? { color: DARK_TITLE, symbolColor: '#c7c7cf', height: 48 }
+    : { color: LIGHT_TITLE, symbolColor: '#3a3a42', height: 48 }
 }
 
 function resolveDark(theme: AppSettings['theme']): boolean {
@@ -74,14 +103,14 @@ function resolveDark(theme: AppSettings['theme']): boolean {
 function createWindow(): void {
   const dark = resolveDark(settings.get().theme)
   win = new BrowserWindow({
-    width: 1400,
-    height: 880,
-    minWidth: 940,
-    minHeight: 600,
+    width: 1440,
+    height: 900,
+    minWidth: 1024,
+    minHeight: 640,
     show: false,
     title: 'CarrotCam',
     icon: iconPath(),
-    backgroundColor: dark ? '#0e0d0c' : '#f6f3ef',
+    backgroundColor: dark ? DARK_TITLE : LIGHT_TITLE,
     titleBarStyle: 'hidden',
     titleBarOverlay: titleBarColors(dark),
     webPreferences: {
@@ -119,7 +148,9 @@ function createWindow(): void {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('app://') && !url.startsWith('http://localhost')) e.preventDefault()
+    // the dev server only exists in development; the packaged app never leaves app://
+    const allowed = url.startsWith('app://') || (!app.isPackaged && url.startsWith('http://localhost'))
+    if (!allowed) e.preventDefault()
   })
 
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -224,7 +255,9 @@ function registerShortcuts(): void {
     'CommandOrControl+Alt+P': 'privacy-blur',
     'CommandOrControl+Alt+B': 'privacy-brb',
     'CommandOrControl+Alt+F': 'privacy-freeze',
-    'CommandOrControl+Alt+S': 'snapshot'
+    'CommandOrControl+Alt+S': 'snapshot',
+    // voice: listen for one command without the wake word
+    'CommandOrControl+Alt+Space': 'voice-listen'
   }
   for (const [accel, action] of Object.entries(shortcuts)) {
     try {
@@ -236,15 +269,26 @@ function registerShortcuts(): void {
 }
 
 function saveFile(kind: 'photo' | 'video', ext: string, data: ArrayBuffer): string {
-  const base = app.getPath(kind === 'photo' ? 'pictures' : 'videos')
-  const dir = join(base, 'CarrotCam')
-  mkdirSync(dir, { recursive: true })
-  const stamp = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+/, '')
-  let file = join(dir, `CarrotCam ${stamp}.${ext}`)
-  for (let i = 2; existsSync(file); i++) file = join(dir, `CarrotCam ${stamp} (${i}).${ext}`)
+  const file = newCaptureFile(kind, ext || (kind === 'photo' ? 'png' : 'webm'))
   writeFileSync(file, Buffer.from(data))
   return file
 }
+
+function diagnostics(): Diagnostics {
+  const info = server.info()
+  const c = cpus()
+  return {
+    version: app.getVersion(),
+    os: `${process.platform} ${osRelease()} ${process.arch}`,
+    cpu: c[0]?.model?.trim() ?? 'unknown',
+    cores: c.length,
+    memoryGb: Math.round((totalmem() / 1024 ** 3) * 10) / 10,
+    server: { running: info.running, port: info.port, addresses: info.addresses },
+    driver: lastDriver,
+    logs: log.transports.file.getFile().path
+  }
+}
+let lastDriver: Diagnostics['driver'] = { supported: process.platform === 'win32', installed: false, upToDate: false, path: null }
 
 function firewallFix(): Promise<boolean> {
   const exe = process.execPath.replace(/'/g, "''")
@@ -272,8 +316,8 @@ function registerIpc(): void {
     return next
   })
 
-  ipcMain.handle(IPC.driverStatus, () => driverStatus())
-  ipcMain.handle(IPC.driverInstall, () => installDriver())
+  ipcMain.handle(IPC.driverStatus, async () => (lastDriver = await driverStatus()))
+  ipcMain.handle(IPC.driverInstall, async () => (lastDriver = await installDriver()))
   ipcMain.handle(IPC.driverUninstall, () => uninstallDriver())
   ipcMain.handle(IPC.driverFormat, () => writeDriverFormat(settings.get().output))
 
@@ -303,8 +347,17 @@ function registerIpc(): void {
   ipcMain.handle(IPC.setTheme, (_e, dark: boolean) => {
     if (!win) return
     win.setTitleBarOverlay(titleBarColors(dark))
-    win.setBackgroundColor(dark ? '#0e0d0c' : '#f6f3ef')
+    win.setBackgroundColor(dark ? DARK_TITLE : LIGHT_TITLE)
   })
+  ipcMain.handle(IPC.capturesList, (): CaptureItem[] => listCaptures())
+  ipcMain.handle(IPC.capturesDelete, (_e, kind: CaptureItem['kind'], name: string) => deleteCapture(kind, name))
+  ipcMain.handle(IPC.capturesOpen, (_e, kind: CaptureItem['kind'], name: string) => openCapture(kind, name))
+  ipcMain.handle(IPC.capturesFolder, (_e, kind: CaptureItem['kind']) => openCaptureFolder(kind === 'video' ? 'video' : 'photo'))
+  ipcMain.handle(IPC.recordOpen, (_e, ext: string) => recordOpen(String(ext)))
+  ipcMain.handle(IPC.recordWrite, (_e, id: number, data: ArrayBuffer) => recordWrite(id, data))
+  ipcMain.handle(IPC.recordClose, (_e, id: number) => recordClose(id))
+  ipcMain.handle(IPC.diagnostics, () => diagnostics())
+  ipcMain.handle(IPC.openLogs, () => shell.openPath(dirname(log.transports.file.getFile().path)))
   ipcMain.handle(IPC.firewallFix, () => firewallFix())
   ipcMain.handle(
     IPC.appInfo,
@@ -328,6 +381,7 @@ async function bootstrap(): Promise<void> {
   nativeTheme.themeSource = s.theme
   setupPermissions()
   serveRenderer()
+  serveMedia()
   registerIpc()
   createWindow()
   buildTray()
@@ -347,7 +401,10 @@ async function bootstrap(): Promise<void> {
   if (process.platform === 'win32') {
     void writeDriverFormat(s.output)
     ensureDriver()
-      .then((status) => log.info('[driver] status', status))
+      .then((status) => {
+        lastDriver = status
+        log.info('[driver] status', status)
+      })
       .catch((err) => log.error('[driver] ensure failed', err))
   }
 
@@ -361,6 +418,7 @@ async function bootstrap(): Promise<void> {
 app.on('before-quit', () => {
   quitting = true
   settings.flush()
+  closeAllRecordings()
 })
 
 app.on('will-quit', () => {

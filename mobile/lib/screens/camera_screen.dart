@@ -122,14 +122,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
                     color: Colors.black,
                     alignment: Alignment.center,
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: link.isStreaming ? CC.green : CC.orange,
-                          shape: BoxShape.circle,
-                        ),
-                      ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(begin: 0.3, end: 1, duration: 1200.ms),
+                      // static on purpose: stealth mode is about saving battery
+                      Dot(link.isStreaming ? CC.green : CC.orange, size: 10),
                       const SizedBox(height: 14),
                       Text(
                         link.isStreaming ? 'Streaming to ${link.pcName}' : 'Standing by',
@@ -138,7 +132,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
                       const SizedBox(height: 4),
                       Text('Tap to wake', style: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 12)),
                     ]),
-                  ).animate().fadeIn(duration: 400.ms),
+                  ),
                 ),
             ]);
           },
@@ -156,6 +150,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   }
 }
 
+/// Dark translucent surface for controls over the picture (no blur: cheap to draw).
 class _Glass extends StatelessWidget {
   const _Glass({required this.child, this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 8), this.radius = 18});
   final Widget child;
@@ -167,9 +162,9 @@ class _Glass extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
+        color: CC.overlay,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        border: Border.all(color: CC.overlayBorder),
       ),
       child: child,
     );
@@ -190,7 +185,6 @@ class _TopBar extends StatelessWidget {
       LinkState.error => ('Not connected', CC.red),
       LinkState.idle => ('Not connected', Colors.grey),
     };
-    final s = link.stats;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -209,11 +203,7 @@ class _TopBar extends StatelessWidget {
             Flexible(
               child: _Glass(
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(begin: 0.4, end: 1, duration: 900.ms),
+                  Dot(color),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(label,
@@ -224,20 +214,12 @@ class _TopBar extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            if (link.isStreaming && s.width > 0)
-              _Glass(
-                child: Text(
-                  '${s.height}p · ${s.fps}fps · ${s.mbps.toStringAsFixed(1)} Mbps',
-                  style: const TextStyle(color: Colors.white, fontSize: 11.5, fontFamily: 'monospace'),
-                ),
-              ),
-            const SizedBox(width: 8),
             _Glass(
               padding: EdgeInsets.zero,
               radius: 24,
               child: IconButton(
-                tooltip: 'Stealth mode (black screen)',
-                icon: const Icon(Icons.dark_mode_rounded, color: Colors.white),
+                tooltip: 'Black screen (saves battery)',
+                icon: const Icon(Icons.dark_mode_outlined, color: Colors.white),
                 onPressed: onStealth,
               ),
             ),
@@ -340,7 +322,7 @@ class _BottomBar extends StatelessWidget {
                 onTap: () => link.setTorch(!link.torch),
               ),
               _RoundButton(icon: Icons.cameraswitch_rounded, label: 'Flip', onTap: link.switchCamera),
-              _RoundButton(icon: Icons.auto_awesome_rounded, label: 'Studio', big: true, onTap: onRemote, active: true),
+              _RoundButton(icon: Icons.auto_awesome_rounded, label: 'Effects', big: true, onTap: onRemote, active: true),
               _RoundButton(
                 icon: Icons.photo_camera_rounded,
                 label: 'Snap',
@@ -403,24 +385,21 @@ class _RoundButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = big ? 66.0 : 54.0;
+    final size = big ? 62.0 : 52.0;
     return Opacity(
       opacity: enabled ? 1 : 0.4,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         GestureDetector(
           onTap: enabled ? onTap : null,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+          child: Container(
             width: size,
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: active && big ? CC.gradient : null,
-              color: active && !big ? CC.orange : Colors.black.withValues(alpha: 0.45),
-              border: Border.all(color: Colors.white.withValues(alpha: big ? 0 : 0.14)),
-              boxShadow: big ? [BoxShadow(color: CC.orange.withValues(alpha: 0.45), blurRadius: 20, offset: const Offset(0, 6))] : null,
+              color: active ? CC.orange : CC.overlay,
+              border: Border.all(color: active ? CC.orange : CC.overlayBorder),
             ),
-            child: Icon(icon, color: Colors.white, size: big ? 30 : 24),
+            child: Icon(icon, color: Colors.white, size: big ? 28 : 23),
           ),
         ),
         const SizedBox(height: 6),
@@ -430,13 +409,13 @@ class _RoundButton extends StatelessWidget {
   }
 }
 
-/// Remote control for the PC effects.
+/// Remote control for the effects on the PC.
 class _RemoteSheet extends StatelessWidget {
   const _RemoteSheet();
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final t = Tokens.of(context);
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.62,
@@ -446,48 +425,47 @@ class _RemoteSheet extends StatelessWidget {
         listenable: link,
         builder: (context, _) {
           final r = link.remote;
-          Widget section(String t) => Padding(
-                padding: const EdgeInsets.fromLTRB(4, 18, 4, 10),
-                child: Text(t, style: TextStyle(color: scheme.outline, fontWeight: FontWeight.w800, letterSpacing: 1.1, fontSize: 12)),
-              );
           return ListView(
             controller: scroll,
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 30),
             children: [
               Row(children: [
-                const Text('Studio remote', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                const Text('Effects', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
                 const Spacer(),
-                if (!link.isConnected) const Text('Not connected', style: TextStyle(color: CC.red)),
+                if (!link.isConnected) const Text('Not connected', style: TextStyle(color: CC.red, fontWeight: FontWeight.w600)),
               ]),
-              const SizedBox(height: 4),
-              Text('Control CarrotCam on ${link.pcName.isEmpty ? 'your PC' : link.pcName} from here.', style: TextStyle(color: scheme.outline)),
-              section('QUICK LOOKS'),
+              const SizedBox(height: 2),
+              Text('Changes apply to CarrotCam on ${link.pcName.isEmpty ? 'your PC' : link.pcName}.', style: TextStyle(color: t.muted)),
+              const SectionLabel('Looks'),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 for (final (id, label, icon) in kPresets)
                   ActionChip(
-                    avatar: Icon(icon, size: 18, color: CC.orange),
+                    avatar: Icon(icon, size: 17, color: CC.orange),
                     label: Text(label),
-                    onPressed: () => link.sendRemote('preset', id),
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      link.sendRemote('preset', id);
+                    },
                   ),
               ]),
-              section('EFFECTS'),
+              const SectionLabel('Camera'),
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 2.6,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
+                childAspectRatio: 2.9,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
                 children: [
                   _Toggle(icon: Icons.blur_on_rounded, label: 'Blur background', on: r.background == 'blur', onTap: () => link.sendRemote('background', r.background == 'blur' ? 'none' : 'blur')),
-                  _Toggle(icon: Icons.center_focus_strong_rounded, label: 'Auto framing', on: r.autoFrame, onTap: () => link.sendRemote('autoFrame', !r.autoFrame)),
+                  _Toggle(icon: Icons.center_focus_strong_rounded, label: 'Follow me', on: r.autoFrame, onTap: () => link.sendRemote('autoFrame', !r.autoFrame)),
                   _Toggle(icon: Icons.highlight_rounded, label: 'Spotlight', on: r.spotlight, onTap: () => link.sendRemote('spotlight', !r.spotlight)),
                   _Toggle(icon: Icons.face_retouching_natural_rounded, label: 'Retouch', on: r.retouch, onTap: () => link.sendRemote('retouch', !r.retouch)),
                 ],
               ),
-              section('FILTER'),
+              const SectionLabel('Filter'),
               SizedBox(
-                height: 44,
+                height: 40,
                 child: ListView(scrollDirection: Axis.horizontal, children: [
                   for (final (id, label) in kFilters)
                     Padding(
@@ -495,14 +473,15 @@ class _RemoteSheet extends StatelessWidget {
                       child: ChoiceChip(
                         label: Text(label),
                         selected: r.filter == id,
+                        showCheckmark: false,
                         selectedColor: CC.orange,
-                        labelStyle: TextStyle(color: r.filter == id ? Colors.white : null, fontWeight: FontWeight.w600),
+                        labelStyle: TextStyle(color: r.filter == id ? Colors.white : t.text, fontWeight: FontWeight.w600),
                         onSelected: (_) => link.sendRemote('filter', id),
                       ),
                     ),
                 ]),
               ),
-              section('REACTIONS'),
+              const SectionLabel('Reactions'),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 for (final (id, label, icon) in kReactions)
                   Tooltip(
@@ -512,29 +491,29 @@ class _RemoteSheet extends StatelessWidget {
                         HapticFeedback.selectionClick();
                         link.sendRemote('reaction', id);
                       },
-                      radius: 30,
+                      radius: 28,
                       child: Container(
                         width: 48,
                         height: 48,
-                        decoration: BoxDecoration(color: CC.orange.withValues(alpha: 0.14), shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: t.surface2, borderRadius: BorderRadius.circular(12), border: Border.all(color: t.border)),
                         child: Icon(icon, color: CC.orange),
                       ),
                     ),
                   ),
               ]),
-              section('PRIVACY'),
+              const SectionLabel('Privacy'),
               Row(children: [
-                Expanded(child: _Toggle(icon: Icons.visibility_off_rounded, label: 'Blur all', on: r.privacy == 'blur', onTap: () => link.sendRemote('privacy', 'blur'))),
-                const SizedBox(width: 10),
-                Expanded(child: _Toggle(icon: Icons.coffee_rounded, label: 'Be right back', on: r.privacy == 'brb', onTap: () => link.sendRemote('privacy', 'brb'))),
+                Expanded(child: _Toggle(icon: Icons.visibility_off_outlined, label: 'Hide camera', on: r.privacy == 'blur', onTap: () => link.sendRemote('privacy', 'blur'))),
+                const SizedBox(width: 8),
+                Expanded(child: _Toggle(icon: Icons.coffee_outlined, label: 'Be right back', on: r.privacy == 'brb', onTap: () => link.sendRemote('privacy', 'brb'))),
               ]),
-              section('PC'),
+              const SectionLabel('Capture on the PC'),
               Row(children: [
                 Expanded(
                   child: _Toggle(icon: Icons.fiber_manual_record_rounded, label: r.recording ? 'Stop recording' : 'Record', on: r.recording, onTap: () => link.sendRemote('record')),
                 ),
-                const SizedBox(width: 10),
-                Expanded(child: _Toggle(icon: Icons.photo_camera_rounded, label: 'Photo', on: false, onTap: () => link.sendRemote('snapshot'))),
+                const SizedBox(width: 8),
+                Expanded(child: _Toggle(icon: Icons.photo_camera_outlined, label: 'Snapshot', on: false, onTap: () => link.sendRemote('snapshot'))),
               ]),
             ],
           );
@@ -553,25 +532,28 @@ class _Toggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final t = Tokens.of(context);
     return Material(
-      color: on ? CC.orange : scheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(18),
+      color: on ? t.accentSoft : t.surface2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: on ? CC.orange.withValues(alpha: 0.45) : t.border),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(children: [
-            Icon(icon, color: on ? Colors.white : CC.orange),
+            Icon(icon, color: on ? CC.orange : t.muted, size: 21),
             const SizedBox(width: 10),
             Expanded(
               child: Text(label,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w700, color: on ? Colors.white : scheme.onSurface)),
+                  style: TextStyle(fontWeight: FontWeight.w700, color: on ? CC.orangeText : t.text)),
             ),
           ]),
         ),

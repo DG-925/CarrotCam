@@ -3,7 +3,6 @@ import { Hand, ScanFace } from 'lucide-react'
 import type { FrameTightness } from '@shared/effects'
 import { Section, Segmented, Slider, ToggleRow } from '@/components/ui'
 import { toggleHandControl } from '@/lib/controller'
-import { HAND_COMMANDS } from '@/lib/hands'
 import { useStore } from '@/lib/store'
 import { FaceNote, PanelTitle, useFx } from './common'
 
@@ -35,42 +34,25 @@ export function FramingPanel(): React.JSX.Element {
             value={handControl}
             onChange={() => void toggleHandControl()}
           />
-          <AnimatePresence initial={false}>
-            {handControl && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
-                <div className="gesture-list">
-                  <div>
-                    <b>Pinch with both hands</b>
-                    <span>Pull apart or push together to zoom</span>
-                  </div>
-                  <div>
-                    <b>Pinch with one hand</b>
-                    <span>Drag to move the view (while zoomed)</span>
-                  </div>
-                  <div>
-                    <b>Point (index finger)</b>
-                    <span>Draws while drawing is on</span>
-                  </div>
-                  {HAND_COMMANDS.map((c) => (
-                    <div key={c.gesture}>
-                      <b>{c.pose}</b>
-                      <span>{c.label}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="hint" style={{ margin: '8px 0 2px' }}>
-                  Keep your hand in view and hold each gesture for about a second.
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <p className="hint" style={{ padding: '0 0 10px' }}>
+            Pinch with both hands to zoom, point up for Follow me.{' '}
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault()
+                useStore.setState({ page: 'controls', controlsTab: 'hands' })
+              }}
+            >
+              All gestures
+            </a>
+          </p>
         </div>
       </Section>
-      <Section title="Center stage">
+      <Section title="Follow me">
         <div className="card">
           <ToggleRow
-            title="Auto framing"
-            hint="Smoothly keeps you centered as you move"
+            title="Follow me"
+            hint="The camera keeps you centered as you move"
             icon={<ScanFace size={18} color="var(--accent)" />}
             value={f.autoFrame}
             onChange={set('autoFrame')}

@@ -44,7 +44,7 @@ export function Switch({
     >
       <motion.span
         className="knob"
-        animate={{ x: value ? 17 : 0 }}
+        animate={{ x: value ? 18 : 0 }}
         transition={{ type: 'spring', stiffness: 600, damping: 34 }}
       />
     </button>
@@ -198,6 +198,17 @@ export function Segmented<T extends string | number>({
         </button>
       ))}
     </div>
+  )
+}
+
+/** Keyboard shortcut chips: <Keys keys={['Ctrl', 'Alt', 'P']} /> */
+export function Keys({ keys }: { keys: string[] }): React.JSX.Element {
+  return (
+    <span className="kbd">
+      {keys.map((k) => (
+        <kbd key={k}>{k}</kbd>
+      ))}
+    </span>
   )
 }
 
