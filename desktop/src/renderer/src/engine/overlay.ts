@@ -254,6 +254,7 @@ export class OverlayLayer {
         this.dirty = true
       }
     }
+    if (this.privacy === 'brb') animating = true
     if (!animating && !this.dirty) return false
     this.dirty = false
     this.draw(dt, now)
@@ -268,7 +269,7 @@ export class OverlayLayer {
     let content = false
 
     if (this.privacy === 'brb') {
-      this.drawBrb(s)
+      this.drawBrb(s, now / 1000)
       content = true
     }
 
@@ -429,34 +430,116 @@ export class OverlayLayer {
     ctx.restore()
   }
 
-  private drawBrb(s: number): void {
+  /**
+   * Full-screen "Be right back" scene. Fully opaque so nothing of the camera
+   * shows through: warm gradient, drifting glows, the logo with a pulsing
+   * ring, a live "away for" timer and animated dots.
+   */
+  private drawBrb(s: number, t: number): void {
     const { ctx, w, h } = this
-    ctx.fillStyle = 'rgba(10,9,8,0.55)'
+    const cx = w / 2
+
+    // background
+    const bg = ctx.createLinearGradient(0, 0, w, h)
+    bg.addColorStop(0, '#1a110c')
+    bg.addColorStop(0.55, '#120d0a')
+    bg.addColorStop(1, '#0b0807')
+    ctx.fillStyle = bg
     ctx.fillRect(0, 0, w, h)
-    const cw = 620 * s
-    const ch = 300 * s
-    const x = (w - cw) / 2
-    const y = (h - ch) / 2
-    ctx.fillStyle = 'rgba(18,16,14,0.88)'
-    roundRect(ctx, x, y, cw, ch, 34 * s)
+
+    // slowly drifting glows
+    const glow = (x: number, y: number, r: number, color: string): void => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+      g.addColorStop(0, color)
+      g.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, w, h)
+    }
+    glow(w * (0.28 + 0.06 * Math.sin(t * 0.35)), h * (0.3 + 0.05 * Math.cos(t * 0.3)), 520 * s, 'rgba(255,122,26,0.30)')
+    glow(w * (0.74 + 0.05 * Math.cos(t * 0.27)), h * (0.72 + 0.05 * Math.sin(t * 0.33)), 480 * s, 'rgba(255,77,109,0.16)')
+    glow(cx, h * 0.38, 300 * s, 'rgba(255,154,61,0.18)')
+
+    // subtle dot grid
+    ctx.fillStyle = 'rgba(255,255,255,0.035)'
+    const step = 34 * s
+    for (let y = step / 2; y < h; y += step) {
+      for (let x = step / 2; x < w; x += step) {
+        ctx.fillRect(x, y, 1.6 * s, 1.6 * s)
+      }
+    }
+
+    // logo with pulsing rings
+    const ly = h * 0.36
+    const r = 92 * s
+    for (let i = 0; i < 2; i++) {
+      const phase = (t * 0.55 + i * 0.5) % 1
+      ctx.strokeStyle = `rgba(255,122,26,${0.45 * (1 - phase)})`
+      ctx.lineWidth = 3 * s
+      ctx.beginPath()
+      ctx.arc(cx, ly, r * (1 + phase * 0.55), 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    ctx.fillStyle = 'rgba(255,122,26,0.14)'
+    ctx.beginPath()
+    ctx.arc(cx, ly, r, 0, Math.PI * 2)
     ctx.fill()
-    ctx.strokeStyle = 'rgba(255,122,26,0.55)'
-    ctx.lineWidth = 2 * s
+    ctx.strokeStyle = 'rgba(255,154,61,0.55)'
+    ctx.lineWidth = 2.5 * s
     ctx.stroke()
+    const bob = Math.sin(t * 1.6) * 5 * s
+    if (this.logo) {
+      const size = r * 1.35
+      ctx.save()
+      ctx.translate(cx, ly + bob)
+      ctx.rotate(Math.sin(t * 1.1) * 0.06)
+      ctx.drawImage(this.logo, -size / 2, -size / 2, size, size)
+      ctx.restore()
+    } else {
+      drawIcon(ctx, COFFEE, cx, ly + bob, r * 1.1, { stroke: ORANGE })
+    }
+
+    // title + subtitle
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `800 ${78 * s}px ${UI_FONT}`
+    ctx.fillText('Be right back', cx, h * 0.6)
+    const name = this.settings?.nameTag.enabled ? this.settings.nameTag.name.trim() : ''
+    ctx.fillStyle = 'rgba(255,226,204,0.75)'
+    ctx.font = `500 ${27 * s}px ${UI_FONT}`
+    ctx.fillText(name ? `${name} stepped away for a moment` : 'Stepped away for a moment', cx, h * 0.6 + 66 * s)
+
+    // live "away for" timer pill
+    const secs = Math.max(0, Math.floor((Date.now() - (this.brbSince || Date.now())) / 1000))
+    const mm = Math.floor(secs / 60)
+    const away = mm >= 60 ? `${Math.floor(mm / 60)}h ${String(mm % 60).padStart(2, '0')}m` : `${String(mm).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`
+    const label = `Away for ${away}`
+    ctx.font = `700 ${22 * s}px ${UI_FONT}`
+    const pw = ctx.measureText(label).width + 56 * s
+    const ph = 46 * s
+    const py = h * 0.6 + 120 * s
     ctx.fillStyle = 'rgba(255,122,26,0.16)'
-    ctx.beginPath()
-    ctx.arc(w / 2, y + 78 * s, 44 * s, 0, Math.PI * 2)
+    roundRect(ctx, cx - pw / 2, py, pw, ph, ph / 2)
     ctx.fill()
-    drawIcon(ctx, COFFEE, w / 2, y + 78 * s, 50 * s, { stroke: ORANGE })
-    ctx.fillStyle = '#fff'
-    ctx.font = `800 ${50 * s}px ${UI_FONT}`
-    ctx.fillText('Be right back', w / 2, y + 168 * s)
+    ctx.strokeStyle = 'rgba(255,122,26,0.45)'
+    ctx.lineWidth = 1.5 * s
+    ctx.stroke()
     ctx.fillStyle = '#ffb27a'
-    ctx.font = `500 ${24 * s}px ${UI_FONT}`
-    const since = new Date(this.brbSince || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    ctx.fillText(`Away since ${since}`, w / 2, y + 232 * s)
+    ctx.fillText(label, cx, py + ph / 2 + 1)
+
+    // waiting dots
+    for (let i = 0; i < 3; i++) {
+      const k = (Math.sin(t * 4 - i * 0.7) + 1) / 2
+      ctx.fillStyle = `rgba(255,154,61,${0.3 + 0.7 * k})`
+      ctx.beginPath()
+      ctx.arc(cx + (i - 1) * 22 * s, py + ph + 44 * s - k * 6 * s, 6 * s, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    // brand footer
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'
+    ctx.font = `600 ${18 * s}px ${UI_FONT}`
+    ctx.fillText('CarrotCam', cx, h - 34 * s)
     ctx.textAlign = 'start'
   }
 
