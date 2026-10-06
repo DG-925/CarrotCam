@@ -35,6 +35,8 @@ export interface AppSettings {
   gestures: { holdMs: number; disabled: string[] }
   /** offline voice commands ("Carrot, take a photo") */
   voice: { enabled: boolean; wakeWord: boolean; micId: string | null }
+  /** live captions burned into the video (offline speech recognition) */
+  captions: { enabled: boolean; size: 'small' | 'medium' | 'large'; position: 'bottom' | 'top' }
   /** lighter processing for slower PCs; 'auto' turns it on for low-end hardware */
   efficiency: EfficiencyMode
   lastSource: string | null
@@ -65,6 +67,7 @@ export const defaultAppSettings: AppSettings = {
   handControl: false,
   gestures: { holdMs: 700, disabled: [] },
   voice: { enabled: false, wakeWord: true, micId: null },
+  captions: { enabled: false, size: 'medium', position: 'bottom' },
   efficiency: 'auto',
   lastSource: null,
   welcomed: false,

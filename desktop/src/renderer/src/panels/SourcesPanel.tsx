@@ -357,6 +357,28 @@ function Properties(): React.JSX.Element | null {
           </div>
         )}
 
+        {src.kind === 'camera' && (
+          <>
+            <div className="row" style={{ minHeight: 40, marginTop: 6 }}>
+              <div className="label">
+                <b>Cut me out</b>
+                <small>Only you, over your screen (no box)</small>
+              </div>
+              <Switch value={!!src.settings.cutout} onChange={(v) => up(src.id, { settings: { cutout: v } })} />
+            </div>
+            {src.settings.cutout && (
+              <div className="row" style={{ minHeight: 36 }}>
+                <span>Soft shadow</span>
+                <Switch value={src.settings.shadow !== false} onChange={(v) => up(src.id, { settings: { shadow: v } })} />
+              </div>
+            )}
+            {src.settings.cutout && (
+              <p className="hint">
+                Tip: make yourself bigger and put yourself in a bottom corner (↙ or ↘), like a streamer.
+              </p>
+            )}
+          </>
+        )}
         {(src.kind === 'screen' || src.kind === 'window') && (
           <button className="btn sm block" style={{ marginTop: 10 }} onClick={() => setPicker(true)}>
             {src.kind === 'screen' ? <Monitor size={14} /> : <AppWindow size={14} />} Change {src.kind}

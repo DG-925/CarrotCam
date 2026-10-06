@@ -98,6 +98,8 @@ export type ToRender =
   | { t: 'layerImage'; key: string; bitmap: ImageBitmap }
   | { t: 'layerPixels'; key: string; fw: number; fh: number; x: number; y: number; w: number; h: number; data: ArrayBuffer }
   | { t: 'layerDrop'; key: string }
+  /** live captions: a picture drawn over the whole output (null = none) */
+  | { t: 'captions'; bitmap: ImageBitmap | null; rect: { x: number; y: number; w: number; h: number } }
 
 export type FromRender =
   | { t: 'ready'; gpu: string }

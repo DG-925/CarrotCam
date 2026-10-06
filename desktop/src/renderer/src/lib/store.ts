@@ -135,6 +135,7 @@ interface StoreState {
   /** 0..1 while a gesture is being held, else null */
   handProgress: number | null
   voice: VoiceState
+  captions: { status: 'off' | 'loading' | 'on' | 'error'; error?: string }
   /** Efficiency mode in effect (Settings: auto / on / off) */
   efficient: boolean
   /** newest snapshots and recordings (Studio + Gallery) */
@@ -190,6 +191,7 @@ export const useStore = create<StoreState>((set, get) => ({
   handHint: null,
   handProgress: null,
   voice: { status: 'off', heard: [], listenUntil: 0, level: 0 },
+  captions: { status: 'off' },
   efficient: false,
   captures: [],
   viewer: null,

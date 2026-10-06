@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   Camera,
+  Captions,
   Check,
   Coffee,
   Droplet,
@@ -185,6 +186,51 @@ function useMicrophones(): { id: string; label: string }[] {
   return mics
 }
 
+function CaptionsCard(): React.JSX.Element {
+  const c = useStore((s) => s.app.captions)
+  const status = useStore((s) => s.captions)
+  const set = (patch: Partial<typeof c>): void => void updateApp({ captions: { ...c, ...patch } })
+  return (
+    <div className="settings-card">
+      <h2>
+        <Captions size={17} /> Live captions
+      </h2>
+      <ToggleRow
+        title="Show what I say as subtitles"
+        hint={
+          status.status === 'error'
+            ? (status.error ?? 'Captions need attention')
+            : status.status === 'loading'
+              ? 'Starting…'
+              : 'In your video, so calls and recordings see them. Offline, English.'
+        }
+        value={c.enabled}
+        onChange={(v) => set({ enabled: v })}
+      />
+      <label className="field-label">Size</label>
+      <Segmented<'small' | 'medium' | 'large'>
+        value={c.size}
+        onChange={(v) => set({ size: v })}
+        options={[
+          { value: 'small', label: 'Small' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'large', label: 'Large' }
+        ]}
+      />
+      <label className="field-label">Position</label>
+      <Segmented<'bottom' | 'top'>
+        value={c.position}
+        onChange={(v) => set({ position: v })}
+        options={[
+          { value: 'bottom', label: 'Bottom' },
+          { value: 'top', label: 'Top' }
+        ]}
+      />
+      <p className="hint">Uses the microphone picked above. Speak clearly; the small offline model can mishear names.</p>
+    </div>
+  )
+}
+
 function VoiceTab(): React.JSX.Element {
   const settings = useStore((s) => s.app.voice)
   const voice = useStore((s) => s.voice)
@@ -290,6 +336,8 @@ function VoiceTab(): React.JSX.Element {
             <Mic size={14} /> Listen now
           </button>
         </div>
+
+        <CaptionsCard />
 
         <div className="settings-card">
           <h2>Heard</h2>

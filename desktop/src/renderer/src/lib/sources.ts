@@ -324,7 +324,9 @@ function doSync(): void {
       opacity: s.opacity,
       radius: s.radius,
       color: s.kind === 'color' ? hexToRgba(s.settings.color ?? '#000000') : undefined,
-      bgra: s.kind === 'web'
+      bgra: s.kind === 'web',
+      cutout: s.kind === 'camera' && !!s.settings.cutout,
+      shadow: s.settings.shadow !== false
     }))
   engine.setScene(isPlainCamera(scene) ? null : layers)
 }

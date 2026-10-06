@@ -30,6 +30,11 @@ function sanitize(s: AppSettings): AppSettings {
       micId: typeof s.voice?.micId === 'string' ? s.voice.micId : null
     },
     lastSeenVersion: typeof s.lastSeenVersion === 'string' ? s.lastSeenVersion : '',
+    captions: {
+      enabled: !!s.captions?.enabled,
+      size: ['small', 'medium', 'large'].includes(s.captions?.size) ? s.captions.size : d.captions.size,
+      position: s.captions?.position === 'top' ? 'top' : 'bottom'
+    },
     mixer: {
       mic: channel(s.mixer?.mic, d.mixer.mic),
       desktop: channel(s.mixer?.desktop, d.mixer.desktop),

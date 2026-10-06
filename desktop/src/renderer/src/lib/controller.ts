@@ -1,6 +1,7 @@
 // Wires the engine, phones, local cameras, IPC and the store together.
 import {
   IPC,
+  defaultAppSettings,
   type AppInfo,
   type AppSettings,
   type CaptureItem,
@@ -21,6 +22,7 @@ import { VoiceControl } from './voice'
 import { VOICE_COMMANDS, type Heard, type VoiceCommand } from './voice-commands'
 import { WHATS_NEW } from './whats-new'
 import { mixer } from './mixer'
+import { Captions } from './captions'
 import { useScenes } from './scenes'
 import { initSources, switchScene } from './sources'
 import { idb } from './idb'
@@ -37,6 +39,8 @@ let selectToken = 0
 let remoteTimer: ReturnType<typeof setTimeout> | null = null
 let hands: HandControl | null = null
 let voice: VoiceControl | null = null
+let captions: Captions | null = null
+let captionsMic: string | null | undefined
 
 const st = () => useStore.getState()
 
@@ -60,6 +64,33 @@ export async function updateApp(patch: Partial<AppSettings>): Promise<void> {
   if (patch.efficiency) applyEfficiency()
   if (patch.voice) applyVoice(next.voice, prevVoice)
   if (patch.mixer || patch.voice) mixer.configure(next.mixer, next.voice.micId)
+  if (patch.captions || patch.voice || patch.output) applyCaptions(next)
+}
+
+// ---- live captions ------------------------------------------------------------------
+function applyCaptions(app: AppSettings): void {
+  if (!captions) {
+    captions = new Captions({
+      status: (status, error) => useStore.setState({ captions: { status, error } }),
+      picture: (bitmap, rect) => engine.setCaptions(bitmap, rect)
+    })
+  }
+  captions.configure(app.captions, app.output)
+  if (!app.captions.enabled) {
+    if (captions.running || st().captions.status !== 'off') captions.stop()
+    captionsMic = undefined
+    return
+  }
+  if (!captions.running || captionsMic !== app.voice.micId) {
+    captionsMic = app.voice.micId
+    void captions.start(app.voice.micId)
+  }
+}
+
+export async function toggleCaptions(): Promise<void> {
+  const c = st().app.captions
+  await updateApp({ captions: { ...c, enabled: !c.enabled } })
+  if (!c.enabled) toast({ kind: 'info', title: 'Live captions on', body: 'What you say shows as subtitles in your video. Works offline, English only.' })
 }
 let prevVoice: AppSettings['voice'] | null = null
 
@@ -929,7 +960,12 @@ function onShortcut(action: string): void {
 
 // ---- bootstrap ----------------------------------------------------------------------
 export async function initController(): Promise<void> {
-  const [app, info] = await Promise.all([invoke<AppSettings>(IPC.settingsGet), invoke<AppInfo>(IPC.appInfo)])
+  const [raw, info] = await Promise.all([invoke<AppSettings>(IPC.settingsGet), invoke<AppInfo>(IPC.appInfo)])
+  // fill in anything missing (settings from an older version)
+  const app: AppSettings = { ...defaultAppSettings, ...raw }
+  for (const k of ['output', 'stream', 'gestures', 'voice', 'captions', 'mixer'] as const) {
+    app[k] = { ...defaultAppSettings[k], ...(raw[k] as object) } as never
+  }
   useStore.setState({ app, version: info.version })
   applyTheme()
   media.addEventListener('change', applyTheme)
@@ -999,6 +1035,7 @@ export async function initController(): Promise<void> {
   onDevices(devices)
   void refreshCaptures()
   applyVoice(app.voice, null)
+  if (app.captions?.enabled) applyCaptions(app)
   // restore the last local camera if no phone is around
   if (!st().source.id && app.lastSource?.startsWith('cam:') && st().cameras.some((c) => `cam:${c.id}` === app.lastSource)) {
     void selectSource(app.lastSource)

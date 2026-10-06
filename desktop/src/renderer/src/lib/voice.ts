@@ -42,7 +42,7 @@ async function createModelWithFileWorker(vosk: VoskModule): Promise<Model> {
   }
 }
 
-function loadModel(): Promise<Model> {
+export function loadModel(): Promise<Model> {
   if (!modelPromise) {
     modelPromise = import('vosk-browser')
       .then((vosk) => createModelWithFileWorker(vosk))

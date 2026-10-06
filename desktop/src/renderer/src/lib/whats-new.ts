@@ -6,6 +6,21 @@ export interface WhatsNew {
 
 export const WHATS_NEW: WhatsNew[] = [
   {
+    version: '1.5.0',
+    items: [
+      {
+        icon: 'sources',
+        title: 'Cut yourself out over your screen',
+        body: 'In Sources, select the CarrotCam camera and turn on "Cut me out": just you over your code or slides, with a soft shadow. No box.'
+      },
+      {
+        icon: 'mic',
+        title: 'Live captions',
+        body: 'Press Captions under the picture: what you say shows as subtitles in your video, for calls and recordings. Works offline.'
+      }
+    ]
+  },
+  {
     version: '1.4.0',
     items: [
       {

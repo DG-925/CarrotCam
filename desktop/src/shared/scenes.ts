@@ -46,6 +46,9 @@ export interface SourceSettings {
   /** device: 'cam:<deviceId>' or 'phone:<id>' */
   deviceId?: string
   deviceLabel?: string
+  /** camera: show only the person (background removed), with a soft shadow */
+  cutout?: boolean
+  shadow?: boolean
   /** video files: volume in recordings (0..1) */
   volume?: number
 }
@@ -117,7 +120,7 @@ export function isPlainCamera(scene: Scene | undefined): boolean {
   const s = visible[0]
   const r = s.rect
   const c = s.crop
-  return r.x === 0 && r.y === 0 && r.w === 1 && r.h === 1 && s.opacity >= 1 && s.radius === 0 && !c.l && !c.t && !c.r && !c.b
+  return r.x === 0 && r.y === 0 && r.w === 1 && r.h === 1 && s.opacity >= 1 && s.radius === 0 && !c.l && !c.t && !c.r && !c.b && !s.settings.cutout
 }
 
 export function sanitizeScenes(raw: unknown): ScenesState {
@@ -165,4 +168,7 @@ export interface LayerSpec {
   color?: [number, number, number, number]
   /** pixels come in BGRA order (web pages) */
   bgra?: boolean
+  /** camera only: cut out the person (background removed) */
+  cutout?: boolean
+  shadow?: boolean
 }

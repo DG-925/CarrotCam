@@ -206,6 +206,11 @@ export class Engine {
     this.post({ t: 'layerPixels', key, ...frame }, [frame.data])
   }
 
+  /** Live captions picture over the whole output (null hides it). */
+  setCaptions(bitmap: ImageBitmap | null, rect = { x: 0, y: 0, w: 1, h: 1 }): void {
+    this.post({ t: 'captions', bitmap, rect }, bitmap ? [bitmap] : [])
+  }
+
   dropLayer(key: string): void {
     this.post({ t: 'layerDrop', key })
   }

@@ -631,27 +631,49 @@ void main() {
 /** Scenes: draws one source into the scene (scissored to its box, alpha blended). */
 export const FS_LAYER = HEADER + /* glsl */ `
 uniform sampler2D uTex;
+uniform sampler2D uMask;  // person mask (camera only)
 uniform vec4 uRect;     // x, y, w, h in output uv (y down)
 uniform vec4 uCrop;     // left, top, right, bottom fractions
 uniform vec2 uRes;
 uniform float uOpacity;
 uniform float uRadius;  // px
-uniform int uMode;      // 0 texture, 1 solid color, 2 texture in BGRA order
+uniform int uMode;      // 0 texture, 1 solid color, 2 texture in BGRA order, 3 camera cut out
 uniform vec4 uColor;
+uniform float uShadow;  // cut out: drop shadow strength 0..1
+uniform float uHasMask;
+float maskAt(vec2 st) {
+  if (uHasMask < 0.5) return 1.0;
+  return texture(uMask, clamp(st, 0.0, 1.0)).r;
+}
 void main() {
   vec2 local = (vUv - uRect.xy) / uRect.zw;
   if (local.x < 0.0 || local.y < 0.0 || local.x > 1.0 || local.y > 1.0) discard;
   vec4 c;
+  vec2 st = vec2(mix(uCrop.x, 1.0 - uCrop.z, local.x), mix(uCrop.y, 1.0 - uCrop.w, local.y));
   if (uMode == 1) {
     c = uColor;
   } else {
-    vec2 st = vec2(mix(uCrop.x, 1.0 - uCrop.z, local.x), mix(uCrop.y, 1.0 - uCrop.w, local.y));
     c = texture(uTex, st);
     if (uMode == 2) c = c.bgra;
   }
-  vec2 size = uRect.zw * uRes;
-  vec2 q = abs(local * size - size * 0.5) - (size * 0.5 - uRadius);
-  float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uRadius;
-  float a = clamp(0.5 - d, 0.0, 1.0);
-  outColor = vec4(c.rgb, c.a * a * uOpacity);
+  if (uMode == 3) {
+    // just the person, with a soft shadow down and to the right
+    float a = smoothstep(0.08, 0.6, maskAt(st));
+    float sh = 0.0;
+    if (uShadow > 0.0) {
+      vec2 off = vec2(0.012, 0.018);
+      vec2 r = vec2(0.012, 0.012 * uRes.x / uRes.y);
+      for (int i = -2; i <= 2; i++)
+        for (int j = -2; j <= 2; j++) sh += maskAt(st - off + vec2(float(i), float(j)) * r);
+      sh = sh / 25.0 * 0.55 * uShadow;
+    }
+    float outA = a + sh * (1.0 - a);
+    c = vec4(outA > 0.001 ? c.rgb * a / outA : vec3(0.0), outA);
+  } else {
+    vec2 size = uRect.zw * uRes;
+    vec2 q = abs(local * size - size * 0.5) - (size * 0.5 - uRadius);
+    float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uRadius;
+    c.a *= clamp(0.5 - d, 0.0, 1.0);
+  }
+  outColor = vec4(c.rgb, c.a * uOpacity);
 }`

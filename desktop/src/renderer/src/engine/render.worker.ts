@@ -80,6 +80,9 @@ const layerTex = new Map<string, { tex: WebGLTexture; w: number; h: number; toke
 const layerReaders = new Map<string, ReadableStreamDefaultReader<VideoFrame>>()
 let layerToken = 0
 let lastOut: Target | null = null
+// live captions, drawn over the whole output
+let captionTex: WebGLTexture | null = null
+let captionRect: { x: number; y: number; w: number; h: number } | null = null
 const down: Target[] = []
 const up: Target[] = []
 
@@ -302,7 +305,9 @@ function mlConfig(): MlConfig {
     r.faceLight > 0 ||
     r.slim > 0 ||
     r.eyeEnlarge > 0
-  return { segmentation: needsMask, face: needsFace, gestures: e.overlay.gestures, hands: handControl }
+  // scenes: a cut-out camera needs the person mask too
+  const cutout = !!sceneLayers?.some((l) => l.key === 'camera' && l.cutout) && e.privacy === 'off'
+  return { segmentation: needsMask || cutout, face: needsFace, gestures: e.overlay.gestures, hands: handControl }
 }
 
 function syncMlConfig(): void {
@@ -892,7 +897,13 @@ function composeScene(): Target {
     gl.uniform4f(p.u.uCrop, l.crop.l, l.crop.t, l.crop.r, l.crop.b)
     gl.uniform1f(p.u.uOpacity, l.opacity)
     gl.uniform1f(p.u.uRadius, (l.radius * H) / 720)
-    gl.uniform1i(p.u.uMode, l.key ? (l.bgra ? 2 : 0) : 1)
+    const cut = l.key === 'camera' && !!l.cutout
+    gl.uniform1i(p.u.uMode, cut ? 3 : l.key ? (l.bgra ? 2 : 0) : 1)
+    if (cut) {
+      bindTex(1, maskT[1 - maskIdx].tex, p.u.uMask)
+      gl.uniform1f(p.u.uHasMask, maskValid ? 1 : 0)
+      gl.uniform1f(p.u.uShadow, l.shadow === false ? 0 : 1)
+    }
     const c = l.color ?? [0, 0, 0, 1]
     gl.uniform4f(p.u.uColor, c[0], c[1], c[2], c[3])
     if (tex) bindTex(0, tex, p.u.uTex)
@@ -957,8 +968,42 @@ function dropLayer(key: string, deleteTexture = true): void {
   }
 }
 
+/** Captions go over everything (also over a plain camera picture). */
+function drawCaptions(out: Target): void {
+  if (!captionTex || !captionRect) return
+  out.bind()
+  const p = use(P.layer)
+  const r = captionRect
+  gl.enable(gl.BLEND)
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+  gl.enable(gl.SCISSOR_TEST)
+  gl.scissor(Math.max(0, Math.floor(r.x * W)), Math.max(0, Math.floor(r.y * H)), Math.ceil(r.w * W) + 1, Math.ceil(r.h * H) + 1)
+  gl.uniform2f(p.u.uRes, W, H)
+  gl.uniform4f(p.u.uRect, r.x, r.y, r.w, r.h)
+  gl.uniform4f(p.u.uCrop, 0, 0, 0, 0)
+  gl.uniform1f(p.u.uOpacity, 1)
+  gl.uniform1f(p.u.uRadius, 0)
+  gl.uniform1i(p.u.uMode, 0)
+  bindTex(0, captionTex, p.u.uTex)
+  draw()
+  gl.disable(gl.SCISSOR_TEST)
+  gl.disable(gl.BLEND)
+}
+
 function present(now: number, origTex?: WebGLTexture): void {
-  const out = composeScene()
+  let out = composeScene()
+  const plainCamera = out === finalT
+  if (captionTex && captionRect && effects.privacy !== 'freeze') {
+    // draw on a copy when the output is the camera picture itself (it is reused while frozen)
+    if (out === finalT) {
+      sceneT.bind()
+      const cp = use(P.copy)
+      bindTex(0, finalT.tex, cp.u.uTex)
+      draw()
+      out = sceneT
+    }
+    drawCaptions(out)
+  }
   // preview
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.viewport(0, 0, W, H)
@@ -966,7 +1011,7 @@ function present(now: number, origTex?: WebGLTexture): void {
   bindTex(0, out.tex, p.u.uTex)
   bindTex(1, origTex ?? out.tex, p.u.uOrig)
   gl.uniform2f(p.u.uRes, W, H)
-  const showCompare = compare >= 0 && !snapshotPending && !!origTex && out === finalT
+  const showCompare = compare >= 0 && !snapshotPending && !!origTex && plainCamera
   gl.uniform1f(p.u.uCompare, showCompare ? compare : -1)
   draw()
   statFrames++
@@ -1203,6 +1248,7 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
     case 'scene':
       sceneLayers = msg.layers
       lastOut = null
+      if (gl) syncMlConfig()
       break
     case 'layerStream':
       if (gl) void runLayerStream(msg.key, msg.stream)
@@ -1228,6 +1274,21 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
     }
     case 'layerDrop':
       dropLayer(msg.key)
+      break
+    case 'captions':
+      if (!gl) {
+        msg.bitmap?.close()
+        break
+      }
+      if (msg.bitmap) {
+        if (!captionTex) captionTex = texture(gl, 0, 0)
+        gl.bindTexture(gl.TEXTURE_2D, captionTex)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, msg.bitmap)
+        msg.bitmap.close()
+        captionRect = msg.rect
+      } else {
+        captionRect = null
+      }
       break
     case 'ink':
       onInk(msg.pointer, msg.drawing)

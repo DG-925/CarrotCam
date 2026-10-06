@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Camera,
+  Captions,
   Check,
   ChevronDown,
   Coffee,
@@ -18,7 +19,7 @@ import {
   SwitchCamera
 } from 'lucide-react'
 import type { PrivacyMode } from '@shared/effects'
-import { setPrivacy, switchCamera, takeSnapshot, toggleDrawing, toggleHandControl, toggleRecording, updateApp } from '@/lib/controller'
+import { setPrivacy, switchCamera, takeSnapshot, toggleCaptions, toggleDrawing, toggleHandControl, toggleRecording, updateApp } from '@/lib/controller'
 import { useElapsed } from '@/hooks/useElapsed'
 import { useStore } from '@/lib/store'
 
@@ -130,6 +131,8 @@ export function ControlBar(): React.JSX.Element {
   const voice = useStore((s) => s.app.voice)
   const voiceStatus = useStore((s) => s.voice.status)
   const inkMode = useStore((s) => s.inkMode)
+  const captionsOn = useStore((s) => s.app.captions.enabled)
+  const captionsStatus = useStore((s) => s.captions.status)
   const recording = useStore((s) => s.recording)
   const set = useStore((s) => s.set)
   const elapsed = useElapsed(recording.startedAt)
@@ -167,6 +170,15 @@ export function ControlBar(): React.JSX.Element {
         onClick={() => void updateApp({ voice: { ...voice, enabled: !voice.enabled } })}
       >
         {voice.enabled && voiceStatus === 'listening' && <span className="live-dot" />}
+      </Tool>
+      <Tool
+        icon={Captions}
+        label="Captions"
+        on={captionsOn}
+        title={captionsOn ? 'Live captions are on' : 'Live captions: show what you say as subtitles'}
+        onClick={() => void toggleCaptions()}
+      >
+        {captionsOn && captionsStatus === 'loading' && <span className="live-dot" style={{ background: 'var(--amber)' }} />}
       </Tool>
       <PrivacyTool />
       <span className="spacer" />
