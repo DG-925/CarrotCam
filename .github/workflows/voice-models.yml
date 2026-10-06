@@ -5,6 +5,8 @@ name: Voice models
 
 on:
   workflow_dispatch:
+  push:
+    paths: ['.github/workflows/voice-models.yml']
 
 permissions:
   contents: write
