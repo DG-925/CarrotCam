@@ -1,0 +1,36 @@
+# Publishes extra speech models (repacked as tar.gz for vosk-browser) on a
+# "voice-models" pre-release. CarrotCam downloads one the first time a user
+# picks that language for live captions. Run by hand when a model changes.
+name: Voice models
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: voice-models
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and repack
+        run: |
+          set -e
+          mkdir -p out && cd out
+          # Arabic (MGB-2: Modern Standard Arabic and dialects, Apache 2.0)
+          curl -fL --retry 3 -o ar.zip https://alphacephei.com/vosk/models/vosk-model-ar-mgb2-0.4.zip
+          unzip -q ar.zip && rm ar.zip
+          tar czf vosk-model-ar.tar.gz vosk-model-ar-mgb2-0.4
+          rm -rf vosk-model-ar-mgb2-0.4
+          ls -la
+      - name: Publish
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --prerelease --title "Voice models" \
+              --notes "Speech models CarrotCam downloads on demand (live captions in more languages). Not an app release."
+          fi
+          gh release upload "$TAG" out/vosk-model-ar.tar.gz --clobber
