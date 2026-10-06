@@ -20,6 +20,7 @@ import { dirname, join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import log from 'electron-log/main'
 import { IPC, GITHUB_REPO, type AppSettings, type TrayAction, type AppInfo, type CaptureItem, type CaptureSource, type Diagnostics } from '@shared/app'
+import { cancelModelDownload, deleteModel, downloadModel, modelStatus } from './models'
 import { closeAllWebSources, closeWebSource, openWebSource, reloadWebSource, repaintWebSource } from './web-sources'
 import type { PcToPhone } from '@shared/protocol'
 import { settings } from './settings'
@@ -382,6 +383,10 @@ function registerIpc(): void {
       if (win && !win.isDestroyed()) win.webContents.send(IPC.evWebFrame, frame)
     })
   )
+  ipcMain.handle(IPC.modelStatus, (_e, lang: string) => modelStatus(String(lang)))
+  ipcMain.handle(IPC.modelDownload, (_e, lang: string) => downloadModel(String(lang), (p) => send(IPC.evModelProgress, p)))
+  ipcMain.handle(IPC.modelCancel, (_e, lang: string) => cancelModelDownload(String(lang)))
+  ipcMain.handle(IPC.modelDelete, (_e, lang: string) => deleteModel(String(lang)))
   ipcMain.handle(IPC.webClose, (_e, key: string) => closeWebSource(String(key)))
   ipcMain.handle(IPC.webReload, (_e, key: string) => reloadWebSource(String(key)))
   ipcMain.handle(IPC.webRepaint, (_e, key: string) => repaintWebSource(String(key)))

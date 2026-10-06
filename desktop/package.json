@@ -1,7 +1,7 @@
 {
   "name": "carrotcam",
   "productName": "CarrotCam",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "CarrotCam - studio webcam with a phone camera, effects and a virtual camera",
   "main": "./out/main/index.js",
   "author": "DG-925",

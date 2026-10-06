@@ -2,7 +2,7 @@
 // recognized offline with the same Vosk model as voice control (free speech
 // instead of a fixed list of commands), so nothing leaves the PC.
 import type { AppSettings } from '@shared/app'
-import { loadModel } from './voice'
+import { loadModel, unloadModel } from './voice'
 
 type Settings = AppSettings['captions']
 type Model = Awaited<ReturnType<typeof loadModel>>
@@ -47,7 +47,8 @@ export class Captions {
   private lastShown = ''
   private clearTimer: ReturnType<typeof setTimeout> | null = null
   private drawTimer: ReturnType<typeof setTimeout> | null = null
-  private settings: Settings = { enabled: false, size: 'medium', position: 'bottom' }
+  private settings: Settings = { enabled: false, size: 'medium', position: 'bottom', language: 'en' }
+  private lang = 'en'
   private outputHeight = 720
   private outputAspect = 16 / 9
 
@@ -68,13 +69,16 @@ export class Captions {
     }
   }
 
-  async start(micId: string | null): Promise<void> {
+  async start(micId: string | null, lang = 'en'): Promise<void> {
     const token = ++this.token
     this.teardown()
+    // the English model stays loaded for voice commands; other languages are freed when not used
+    if (this.lang !== lang && this.lang !== 'en') unloadModel(this.lang)
+    this.lang = lang
     this.ev.status('loading')
     try {
       const [model, stream] = await Promise.all([
-        loadModel(),
+        loadModel(lang),
         navigator.mediaDevices.getUserMedia({
           audio: { deviceId: micId ? { exact: micId } : undefined, channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         })
@@ -95,7 +99,7 @@ export class Captions {
         if (msg.event !== 'result') return
         const text = msg.result.text?.trim() ?? ''
         this.partial = ''
-        if (text && text !== 'the' && text !== 'huh') {
+        if (text && !(this.lang === 'en' && (text === 'the' || text === 'huh'))) {
           this.done = `${this.done} ${text}`.trim()
           this.ev.sentence?.(text)
         }
@@ -123,6 +127,8 @@ export class Captions {
   stop(): void {
     this.token++
     this.teardown()
+    if (this.lang !== 'en') unloadModel(this.lang)
+    this.lang = 'en'
     this.done = ''
     this.partial = ''
     this.lastShown = ''
@@ -164,7 +170,7 @@ export class Captions {
     }
     const scale = this.outputHeight / 720
     const size = { small: 26, medium: 34, large: 44 }[this.settings.size] * scale
-    const font = `600 ${size}px 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, sans-serif`
+    const font = `600 ${size}px 'Segoe UI Variable Text', 'Segoe UI', Tahoma, Inter, system-ui, sans-serif`
     const measure = new OffscreenCanvas(1, 1).getContext('2d')!
     measure.font = font
     const padX = size * 0.6
@@ -182,6 +188,8 @@ export class Captions {
     g.fillStyle = '#ffffff'
     g.textAlign = 'center'
     g.textBaseline = 'middle'
+    // Arabic reads right to left
+    g.direction = /[\u0600-\u06FF]/.test(key) ? 'rtl' : 'ltr'
     lines.forEach((l, i) => g.fillText(l, width / 2, padY + lineH * (i + 0.5)))
     const outW = this.outputHeight * this.outputAspect
     const w = width / outW

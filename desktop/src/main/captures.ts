@@ -6,6 +6,7 @@ import { basename, join, normalize, sep } from 'node:path'
 import { Readable } from 'node:stream'
 import log from 'electron-log/main'
 import type { CaptureItem } from '@shared/app'
+import { modelPath } from './models'
 
 type Kind = CaptureItem['kind']
 
@@ -16,6 +17,7 @@ const MIME: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   webp: 'image/webp',
+  gz: 'application/gzip',
   mp4: 'video/mp4',
   webm: 'video/webm',
   mkv: 'video/x-matroska'
@@ -95,7 +97,10 @@ export function serveMedia(): void {
   protocol.handle('media', async (request) => {
     const url = new URL(request.url)
     const [kind, ...rest] = url.pathname.replace(/^\/+/, '').split('/')
-    const file = url.hostname === 'capture' ? capturePath(kind as Kind, decodeURIComponent(rest.join('/'))) : null
+    // media://capture/<kind>/<name>, or media://model/<lang>.tar.gz (downloaded speech models)
+    const lang = url.hostname === 'model' ? /^([a-z]{2})\.tar\.gz$/.exec(kind)?.[1] : undefined
+    const file =
+      url.hostname === 'capture' ? capturePath(kind as Kind, decodeURIComponent(rest.join('/'))) : lang ? modelPath(lang) : null
     if (!file || !existsSync(file)) return new Response('Not found', { status: 404 })
     const size = statSync(file).size
     const type = MIME[file.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream'

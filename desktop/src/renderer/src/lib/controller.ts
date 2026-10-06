@@ -41,6 +41,7 @@ let hands: HandControl | null = null
 let voice: VoiceControl | null = null
 let captions: Captions | null = null
 let captionsMic: string | null | undefined
+let captionsLang: string | undefined
 
 const st = () => useStore.getState()
 
@@ -79,12 +80,28 @@ function applyCaptions(app: AppSettings): void {
   if (!app.captions.enabled) {
     if (captions.running || st().captions.status !== 'off') captions.stop()
     captionsMic = undefined
+    captionsLang = undefined
     return
   }
-  if (!captions.running || captionsMic !== app.voice.micId) {
+  if (!captions.running || captionsMic !== app.voice.micId || captionsLang !== app.captions.language) {
     captionsMic = app.voice.micId
-    void captions.start(app.voice.micId)
+    captionsLang = app.captions.language
+    void startCaptions(app)
   }
+}
+
+/** Arabic needs its model downloaded first (Controls → Voice → Live captions). */
+async function startCaptions(app: AppSettings): Promise<void> {
+  const lang = app.captions.language
+  if (lang !== 'en') {
+    const status = await invoke<{ installed: boolean }>(IPC.modelStatus, lang)
+    if (!status.installed) {
+      useStore.setState({ captions: { status: 'error', error: 'Download the Arabic captions first (Controls → Voice)' } })
+      captionsLang = undefined
+      return
+    }
+  }
+  await captions?.start(app.voice.micId, lang)
 }
 
 export async function toggleCaptions(): Promise<void> {

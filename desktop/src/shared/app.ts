@@ -36,7 +36,7 @@ export interface AppSettings {
   /** offline voice commands ("Carrot, take a photo") */
   voice: { enabled: boolean; wakeWord: boolean; micId: string | null }
   /** live captions burned into the video (offline speech recognition) */
-  captions: { enabled: boolean; size: 'small' | 'medium' | 'large'; position: 'bottom' | 'top' }
+  captions: { enabled: boolean; size: 'small' | 'medium' | 'large'; position: 'bottom' | 'top'; language: CaptionLanguage }
   /** lighter processing for slower PCs; 'auto' turns it on for low-end hardware */
   efficiency: EfficiencyMode
   lastSource: string | null
@@ -47,6 +47,8 @@ export interface AppSettings {
 }
 
 export type EfficiencyMode = 'auto' | 'on' | 'off'
+/** live captions language: English ships with the app, Arabic is downloaded once */
+export type CaptionLanguage = 'en' | 'ar'
 export interface MixerChannel {
   on: boolean
   volume: number
@@ -67,7 +69,7 @@ export const defaultAppSettings: AppSettings = {
   handControl: false,
   gestures: { holdMs: 700, disabled: [] },
   voice: { enabled: false, wakeWord: true, micId: null },
-  captions: { enabled: false, size: 'medium', position: 'bottom' },
+  captions: { enabled: false, size: 'medium', position: 'bottom', language: 'en' },
   efficiency: 'auto',
   lastSource: null,
   welcomed: false,
@@ -177,6 +179,11 @@ export const IPC = {
   recordClose: 'record:close',
   diagnostics: 'app:diagnostics',
   openLogs: 'app:open-logs',
+  modelStatus: 'model:status',
+  modelDownload: 'model:download',
+  modelCancel: 'model:cancel',
+  modelDelete: 'model:delete',
+  evModelProgress: 'ev:model-progress',
   captureSources: 'capture:sources',
   webOpen: 'web:open',
   webClose: 'web:close',
@@ -226,6 +233,10 @@ export const INVOKE_CHANNELS: string[] = [
   IPC.recordClose,
   IPC.diagnostics,
   IPC.openLogs,
+  IPC.modelStatus,
+  IPC.modelDownload,
+  IPC.modelCancel,
+  IPC.modelDelete,
   IPC.captureSources,
   IPC.webOpen,
   IPC.webClose,
@@ -241,7 +252,8 @@ export const EVENT_CHANNELS: string[] = [
   IPC.evTray,
   IPC.evShortcut,
   IPC.evSettings,
-  IPC.evWebFrame
+  IPC.evWebFrame,
+  IPC.evModelProgress
 ]
 
 export interface AppInfo {

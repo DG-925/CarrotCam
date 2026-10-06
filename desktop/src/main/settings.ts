@@ -33,7 +33,8 @@ function sanitize(s: AppSettings): AppSettings {
     captions: {
       enabled: !!s.captions?.enabled,
       size: ['small', 'medium', 'large'].includes(s.captions?.size) ? s.captions.size : d.captions.size,
-      position: s.captions?.position === 'top' ? 'top' : 'bottom'
+      position: s.captions?.position === 'top' ? 'top' : 'bottom',
+      language: s.captions?.language === 'ar' ? 'ar' : 'en'
     },
     mixer: {
       mic: channel(s.mixer?.mic, d.mixer.mic),

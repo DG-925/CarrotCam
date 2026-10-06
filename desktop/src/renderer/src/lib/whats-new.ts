@@ -6,6 +6,16 @@ export interface WhatsNew {
 
 export const WHATS_NEW: WhatsNew[] = [
   {
+    version: '1.6.0',
+    items: [
+      {
+        icon: 'mic',
+        title: 'Live captions in Arabic',
+        body: 'Controls → Voice → Live captions → العربية. A one-time download (about 330 MB), then it works offline.'
+      }
+    ]
+  },
+  {
     version: '1.5.0',
     items: [
       {

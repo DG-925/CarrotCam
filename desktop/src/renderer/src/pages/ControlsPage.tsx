@@ -4,6 +4,7 @@ import {
   Camera,
   Captions,
   Check,
+  Download,
   Coffee,
   Droplet,
   Hand,
@@ -19,6 +20,8 @@ import {
   ShieldCheck,
   ZoomIn
 } from 'lucide-react'
+import { IPC, type CaptionLanguage } from '@shared/app'
+import { invoke, on } from '@/lib/ipc'
 import { listenOnce, toggleHandControl, updateApp } from '@/lib/controller'
 import { HAND_COMMANDS, type HandCommand } from '@/lib/hands'
 import { useStore } from '@/lib/store'
@@ -186,10 +189,60 @@ function useMicrophones(): { id: string; label: string }[] {
   return mics
 }
 
+function useModel(lang: string): {
+  installed: boolean
+  sizeMb: number
+  percent: number | null
+  error: string | null
+  download: () => void
+  cancel: () => void
+  remove: () => void
+} {
+  const [status, setStatus] = useState({ installed: lang === 'en', sizeMb: 0 })
+  const [percent, setPercent] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    if (lang === 'en') return
+    const refresh = (): void =>
+      void invoke<{ installed: boolean; sizeMb: number; downloading: boolean }>(IPC.modelStatus, lang).then((s) => {
+        setStatus(s)
+        if (s.downloading) setPercent((p) => p ?? 0)
+      })
+    refresh()
+    return on(IPC.evModelProgress, (p: { lang: string; percent: number; done?: boolean; error?: string }) => {
+      if (p.lang !== lang) return
+      if (p.error) {
+        setError(p.error)
+        setPercent(null)
+      } else if (p.done) {
+        setPercent(null)
+        refresh()
+      } else setPercent(p.percent)
+    })
+  }, [lang])
+  return {
+    ...status,
+    percent,
+    error,
+    download: () => {
+      setError(null)
+      setPercent(0)
+      void invoke<boolean>(IPC.modelDownload, lang).then((ok) => {
+        // turning captions on again picks up the new model
+        if (ok) void updateApp({ captions: { ...useStore.getState().app.captions } })
+      })
+    },
+    cancel: () => void invoke(IPC.modelCancel, lang),
+    remove: () => void invoke(IPC.modelDelete, lang).then(() => setStatus({ installed: false, sizeMb: status.sizeMb }))
+  }
+}
+
 function CaptionsCard(): React.JSX.Element {
   const c = useStore((s) => s.app.captions)
   const status = useStore((s) => s.captions)
+  const ar = useModel('ar')
   const set = (patch: Partial<typeof c>): void => void updateApp({ captions: { ...c, ...patch } })
+  const needsDownload = c.language === 'ar' && !ar.installed
   return (
     <div className="settings-card">
       <h2>
@@ -201,12 +254,60 @@ function CaptionsCard(): React.JSX.Element {
           status.status === 'error'
             ? (status.error ?? 'Captions need attention')
             : status.status === 'loading'
-              ? 'Starting…'
-              : 'In your video, so calls and recordings see them. Offline, English.'
+              ? c.language === 'ar'
+                ? 'Starting… (the Arabic model takes a little longer)'
+                : 'Starting…'
+              : 'In your video, so calls and recordings see them. Works offline.'
         }
         value={c.enabled}
         onChange={(v) => set({ enabled: v })}
       />
+      <label className="field-label">Language</label>
+      <Segmented<CaptionLanguage>
+        value={c.language}
+        onChange={(v) => set({ language: v })}
+        options={[
+          { value: 'en', label: 'English' },
+          { value: 'ar', label: 'العربية (Arabic)' }
+        ]}
+      />
+      {c.language === 'ar' && (
+        <div className="model-box">
+          {ar.percent !== null ? (
+            <>
+              <div className="mixer-top">
+                <b>Downloading Arabic…</b>
+                <span className="hint">{ar.percent}%</span>
+              </div>
+              <div className="progress">
+                <span style={{ width: `${ar.percent}%` }} />
+              </div>
+              <button className="btn ghost sm" onClick={ar.cancel}>
+                Cancel
+              </button>
+            </>
+          ) : needsDownload ? (
+            <>
+              <p className="hint" style={{ margin: '0 0 8px' }}>
+                Arabic needs a one-time download (about {ar.sizeMb || 320} MB). After that it works offline.
+              </p>
+              {ar.error && <p className="hint err-text">{ar.error}</p>}
+              <button className="btn primary sm" onClick={ar.download}>
+                <Download size={14} /> Download Arabic
+              </button>
+            </>
+          ) : (
+            <div className="row" style={{ minHeight: 36, padding: 0 }}>
+              <span className="hint">
+                <Check size={13} color="var(--green)" /> Arabic is ready ({ar.sizeMb} MB)
+              </span>
+              <button className="btn ghost sm danger" onClick={ar.remove} title="Free the disk space">
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       <label className="field-label">Size</label>
       <Segmented<'small' | 'medium' | 'large'>
         value={c.size}
@@ -226,7 +327,7 @@ function CaptionsCard(): React.JSX.Element {
           { value: 'top', label: 'Top' }
         ]}
       />
-      <p className="hint">Uses the microphone picked above. Speak clearly; the small offline model can mishear names.</p>
+      <p className="hint">Uses the microphone picked above. Speak clearly; the offline models can mishear names.</p>
     </div>
   )
 }

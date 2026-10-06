@@ -3268,3 +3268,10 @@ details.crop summary {
   right: 0;
   height: 1px;
 }
+.model-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}

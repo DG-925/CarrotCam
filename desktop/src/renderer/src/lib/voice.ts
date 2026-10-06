@@ -19,14 +19,19 @@ export interface VoiceEvents {
 }
 
 const SAMPLE_RATE = 16000
-let modelPromise: Promise<Model> | null = null
+const models = new Map<string, Promise<Model>>()
+
+/** Where a language's model is: English ships with the app, others were downloaded (media://model/…). */
+function modelUrl(lang: string): string {
+  return lang === 'en' ? new URL('vosk/model.tar.gz', location.href).toString() : `media://model/${lang}.tar.gz`
+}
 
 /**
  * vosk-browser starts its worker from a blob: URL, which would inherit the
  * page's Content-Security-Policy (no eval). We ship the same worker as a file
  * (scripts/fetch-assets.mjs) and swap the URL while the model is created.
  */
-async function createModelWithFileWorker(vosk: VoskModule): Promise<Model> {
+async function createModelWithFileWorker(vosk: VoskModule, url: string): Promise<Model> {
   const RealWorker = window.Worker
   const workerUrl = new URL('vosk/vosk-worker.js', location.href).toString()
   window.Worker = class extends RealWorker {
@@ -36,22 +41,31 @@ async function createModelWithFileWorker(vosk: VoskModule): Promise<Model> {
   }
   try {
     // the worker is created synchronously inside createModel
-    return vosk.createModel(new URL('vosk/model.tar.gz', location.href).toString(), -1)
+    return vosk.createModel(url, -1)
   } finally {
     window.Worker = RealWorker
   }
 }
 
-export function loadModel(): Promise<Model> {
-  if (!modelPromise) {
-    modelPromise = import('vosk-browser')
-      .then((vosk) => createModelWithFileWorker(vosk))
+export function loadModel(lang = 'en'): Promise<Model> {
+  let p = models.get(lang)
+  if (!p) {
+    p = import('vosk-browser')
+      .then((vosk) => createModelWithFileWorker(vosk, modelUrl(lang)))
       .catch((err) => {
-        modelPromise = null
+        models.delete(lang)
         throw err
       })
+    models.set(lang, p)
   }
-  return modelPromise
+  return p
+}
+
+/** Frees a language's model (e.g. after switching the captions language). */
+export function unloadModel(lang: string): void {
+  const p = models.get(lang)
+  models.delete(lang)
+  void p?.then((m) => m.terminate()).catch(() => {})
 }
 
 export class VoiceControl {
