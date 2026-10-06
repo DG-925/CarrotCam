@@ -10,6 +10,7 @@ export function useFx(): [EffectSettings, (fn: (e: EffectSettings) => void) => v
 
 const HINTS: Record<string, string> = {
   Looks: 'Pick a style, then fine-tune it',
+  Sources: 'Your screen, windows, pictures and more',
   Adjust: 'Brightness, color and detail',
   Filters: 'Color styles that set the mood',
   Background: 'Blur your room or replace it',

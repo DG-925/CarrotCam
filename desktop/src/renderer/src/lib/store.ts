@@ -28,6 +28,7 @@ export type SettingsSection =
   | 'about'
 export type PanelTab =
   | 'looks'
+  | 'sources'
   | 'adjust'
   | 'filters'
   | 'effects'

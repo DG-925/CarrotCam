@@ -30,6 +30,13 @@ export type VoiceCommand =
   | 'drawOn'
   | 'drawOff'
   | 'drawClear'
+  | 'sceneNext'
+  | 'scenePrev'
+  | 'scene1'
+  | 'scene2'
+  | 'scene3'
+  | 'scene4'
+  | 'scene5'
 
 export const WAKE_WORD = 'carrot'
 
@@ -37,7 +44,7 @@ export interface VoiceCommandInfo {
   command: VoiceCommand
   /** what we show in the app */
   label: string
-  group: 'Capture' | 'Privacy' | 'Camera' | 'Looks' | 'Reactions' | 'Drawing'
+  group: 'Capture' | 'Privacy' | 'Camera' | 'Looks' | 'Reactions' | 'Drawing' | 'Scenes'
   /** phrases that run it (lower case, no punctuation) */
   phrases: string[]
 }
@@ -70,7 +77,14 @@ export const VOICE_COMMANDS: VoiceCommandInfo[] = [
   { command: 'rain', label: 'Rain', group: 'Reactions', phrases: ['rain', 'make it rain'] },
   { command: 'drawOn', label: 'Start drawing', group: 'Drawing', phrases: ['start drawing'] },
   { command: 'drawOff', label: 'Stop drawing', group: 'Drawing', phrases: ['stop drawing'] },
-  { command: 'drawClear', label: 'Erase the drawing', group: 'Drawing', phrases: ['clear drawing', 'erase drawing', 'erase'] }
+  { command: 'drawClear', label: 'Erase the drawing', group: 'Drawing', phrases: ['clear drawing', 'erase drawing', 'erase'] },
+  { command: 'sceneNext', label: 'Next scene', group: 'Scenes', phrases: ['next scene'] },
+  { command: 'scenePrev', label: 'Previous scene', group: 'Scenes', phrases: ['previous scene', 'last scene'] },
+  { command: 'scene1', label: 'Scene 1', group: 'Scenes', phrases: ['scene one'] },
+  { command: 'scene2', label: 'Scene 2', group: 'Scenes', phrases: ['scene two'] },
+  { command: 'scene3', label: 'Scene 3', group: 'Scenes', phrases: ['scene three'] },
+  { command: 'scene4', label: 'Scene 4', group: 'Scenes', phrases: ['scene four'] },
+  { command: 'scene5', label: 'Scene 5', group: 'Scenes', phrases: ['scene five'] }
 ]
 
 const BY_PHRASE = new Map<string, VoiceCommand>()

@@ -3,6 +3,7 @@ import { ChevronsLeftRight, Mic, PenLine, Smartphone, Video } from 'lucide-react
 import { engine, selectSource } from '@/lib/controller'
 import { useElapsed } from '@/hooks/useElapsed'
 import { useStore } from '@/lib/store'
+import { SceneEditor } from './SceneEditor'
 
 /** Circular "hold" progress for gestures (no blur, cheap to draw). */
 function HoldRing({ progress }: { progress: number }): React.JSX.Element {
@@ -62,6 +63,7 @@ export function Preview(): React.JSX.Element {
   const cameras = useStore((s) => s.cameras)
   const compare = useStore((s) => s.compare)
   const set = useStore((s) => s.set)
+  const editing = useStore((s) => s.tab === 'sources' && s.page === 'studio')
   const [split, setSplit] = useState(0.5)
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
 
@@ -138,6 +140,7 @@ export function Preview(): React.JSX.Element {
       >
         <div ref={host} className="canvas-host" />
         <Hud />
+        {editing && <SceneEditor />}
         {compare && (
           <>
             <div className="compare-label" style={{ left: 16 }}>
@@ -153,7 +156,7 @@ export function Preview(): React.JSX.Element {
             </div>
           </>
         )}
-        {!source.id && (
+        {!source.id && !editing && (
           <div className="preview-empty">
             <button className="btn primary" onClick={() => set({ phonesOpen: true })}>
               <Smartphone size={16} /> Connect a phone

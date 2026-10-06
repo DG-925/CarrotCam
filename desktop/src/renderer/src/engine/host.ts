@@ -1,5 +1,6 @@
 // Main-thread facade over the render + ML workers.
 import type { EffectSettings, Reaction } from '@shared/effects'
+import type { LayerSpec } from '@shared/scenes'
 import type { EngineStats, FromRender, HandData, ToRender } from './types'
 import RenderWorker from './render.worker?worker'
 import MlWorker from './ml.worker?worker'
@@ -183,6 +184,30 @@ export class Engine {
     }
     const bitmap = await createImageBitmap(blob, { resizeWidth: 1920, resizeQuality: 'high' })
     this.post({ t: 'bgImage', bitmap }, [bitmap])
+  }
+
+  // ---- scenes ----
+  setScene(layers: LayerSpec[] | null): void {
+    this.post({ t: 'scene', layers })
+  }
+
+  /** Streams a source's video into the scene (screen, window, video file, camera). */
+  setLayerTrack(key: string, track: MediaStreamTrack): void {
+    const processor = new TrackProcessor({ track, maxBufferSize: 1 })
+    this.post({ t: 'layerStream', key, stream: processor.readable }, [processor.readable as unknown as Transferable])
+  }
+
+  setLayerImage(key: string, bitmap: ImageBitmap): void {
+    this.post({ t: 'layerImage', key, bitmap }, [bitmap])
+  }
+
+  /** Raw BGRA pixels (web pages), optionally only the part that changed. */
+  setLayerPixels(key: string, frame: { fw: number; fh: number; x: number; y: number; w: number; h: number; data: ArrayBuffer }): void {
+    this.post({ t: 'layerPixels', key, ...frame }, [frame.data])
+  }
+
+  dropLayer(key: string): void {
+    this.post({ t: 'layerDrop', key })
   }
 
   /** Efficiency mode for slower PCs. */

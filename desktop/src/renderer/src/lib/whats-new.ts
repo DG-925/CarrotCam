@@ -1,10 +1,30 @@
 // Shown once after updating to a version listed here.
 export interface WhatsNew {
   version: string
-  items: { icon: 'layout' | 'gallery' | 'mic' | 'hand' | 'gauge' | 'phone'; title: string; body: string }[]
+  items: { icon: 'layout' | 'gallery' | 'mic' | 'hand' | 'gauge' | 'phone' | 'sources' | 'mixer'; title: string; body: string }[]
 }
 
 export const WHATS_NEW: WhatsNew[] = [
+  {
+    version: '1.4.0',
+    items: [
+      {
+        icon: 'sources',
+        title: 'Sources: your screen in the picture',
+        body: 'Add a window (like VS Code), a full screen, images, videos, web pages, text, colors or a second camera. Drag and resize them right on the preview.'
+      },
+      {
+        icon: 'layout',
+        title: 'Scenes',
+        body: 'Save layouts like "Just me" or "Me + screen" and switch with Ctrl + Alt + 1…9, your phone, or "Carrot, next scene".'
+      },
+      {
+        icon: 'mixer',
+        title: 'Audio mixer for recordings',
+        body: 'Record your PC sound together with your microphone, each with its own volume and level meter.'
+      }
+    ]
+  },
   {
     version: '1.3.0',
     items: [

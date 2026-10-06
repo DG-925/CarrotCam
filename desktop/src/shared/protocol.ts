@@ -71,4 +71,7 @@ export interface RemoteState {
   retouch: boolean
   privacy: string
   recording: boolean
+  /** scene names in order and the active one (older apps ignore these) */
+  scenes?: string[]
+  scene?: number
 }

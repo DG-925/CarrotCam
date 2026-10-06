@@ -1,10 +1,10 @@
 import { motion } from 'motion/react'
-import { Gauge, Hand, Images, LayoutTemplate, Mic, Smartphone, X } from 'lucide-react'
+import { AudioLines, Gauge, Hand, Images, LayoutTemplate, Mic, MonitorPlay, Smartphone, X } from 'lucide-react'
 import { updateApp } from '@/lib/controller'
 import { useStore } from '@/lib/store'
 import { WHATS_NEW } from '@/lib/whats-new'
 
-const ICONS = { layout: LayoutTemplate, gallery: Images, mic: Mic, hand: Hand, gauge: Gauge, phone: Smartphone }
+const ICONS = { layout: LayoutTemplate, gallery: Images, mic: Mic, hand: Hand, gauge: Gauge, phone: Smartphone, sources: MonitorPlay, mixer: AudioLines }
 
 export function WhatsNew(): React.JSX.Element | null {
   const open = useStore((s) => s.whatsNewOpen)

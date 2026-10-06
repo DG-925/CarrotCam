@@ -25,7 +25,10 @@ export interface AppSettings {
     lowLatency: boolean
     codec: 'h264' | 'vp8' | 'vp9'
   }
+  /** microphone in recordings (same as mixer.mic.on, kept for older settings) */
   recordAudio: boolean
+  /** audio mixer for recordings: volume 0..1, on = included */
+  mixer: { mic: MixerChannel; desktop: MixerChannel; media: MixerChannel }
   /** control the camera with hand gestures (pinch to zoom, hold a gesture for commands) */
   handControl: boolean
   /** hand gesture options: how long to hold a pose, and poses switched off */
@@ -42,6 +45,10 @@ export interface AppSettings {
 }
 
 export type EfficiencyMode = 'auto' | 'on' | 'off'
+export interface MixerChannel {
+  on: boolean
+  volume: number
+}
 
 export const defaultAppSettings: AppSettings = {
   theme: 'system',
@@ -54,6 +61,7 @@ export const defaultAppSettings: AppSettings = {
   vcamEnabled: true,
   stream: { resolution: '720p', fps: 30, bitrate: 8000, lowLatency: true, codec: 'h264' },
   recordAudio: true,
+  mixer: { mic: { on: true, volume: 1 }, desktop: { on: false, volume: 0.8 }, media: { on: true, volume: 0.8 } },
   handControl: false,
   gestures: { holdMs: 700, disabled: [] },
   voice: { enabled: false, wakeWord: true, micId: null },
@@ -73,6 +81,15 @@ export interface CaptureItem {
   /** media://capture/<kind>/<name>, served by the main process */
   url: string
   path: string
+}
+
+/** A screen or window that can be captured (Sources → Screen / Window). */
+export interface CaptureSource {
+  id: string
+  name: string
+  kind: 'screen' | 'window'
+  thumbnail: string // data URL
+  icon: string | null
 }
 
 /** Facts for the Help page and "Copy diagnostics". */
@@ -157,6 +174,12 @@ export const IPC = {
   recordClose: 'record:close',
   diagnostics: 'app:diagnostics',
   openLogs: 'app:open-logs',
+  captureSources: 'capture:sources',
+  webOpen: 'web:open',
+  webClose: 'web:close',
+  webReload: 'web:reload',
+  webRepaint: 'web:repaint',
+  evWebFrame: 'ev:web-frame',
   // events (main -> renderer)
   evDevices: 'ev:devices',
   evMessage: 'ev:message',
@@ -199,7 +222,12 @@ export const INVOKE_CHANNELS: string[] = [
   IPC.recordWrite,
   IPC.recordClose,
   IPC.diagnostics,
-  IPC.openLogs
+  IPC.openLogs,
+  IPC.captureSources,
+  IPC.webOpen,
+  IPC.webClose,
+  IPC.webReload,
+  IPC.webRepaint
 ]
 
 export const EVENT_CHANNELS: string[] = [
@@ -209,7 +237,8 @@ export const EVENT_CHANNELS: string[] = [
   IPC.evUpdate,
   IPC.evTray,
   IPC.evShortcut,
-  IPC.evSettings
+  IPC.evSettings,
+  IPC.evWebFrame
 ]
 
 export interface AppInfo {

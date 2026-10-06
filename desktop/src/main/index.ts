@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  desktopCapturer,
   globalShortcut,
   ipcMain,
   Menu,
@@ -18,7 +19,8 @@ import { cpus, totalmem, release as osRelease } from 'node:os'
 import { dirname, join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import log from 'electron-log/main'
-import { IPC, GITHUB_REPO, type AppSettings, type TrayAction, type AppInfo, type CaptureItem, type Diagnostics } from '@shared/app'
+import { IPC, GITHUB_REPO, type AppSettings, type TrayAction, type AppInfo, type CaptureItem, type CaptureSource, type Diagnostics } from '@shared/app'
+import { closeAllWebSources, closeWebSource, openWebSource, reloadWebSource, repaintWebSource } from './web-sources'
 import type { PcToPhone } from '@shared/protocol'
 import { settings } from './settings'
 import { driverStatus, ensureDriver, installDriver, senderDllPath, uninstallDriver, writeDriverFormat } from './driver'
@@ -259,6 +261,8 @@ function registerShortcuts(): void {
     // voice: listen for one command without the wake word
     'CommandOrControl+Alt+Space': 'voice-listen'
   }
+  // scenes 1..9
+  for (let i = 1; i <= 9; i++) shortcuts[`CommandOrControl+Alt+${i}`] = `scene-${i}`
   for (const [accel, action] of Object.entries(shortcuts)) {
     try {
       globalShortcut.register(accel, () => send(IPC.evShortcut, action))
@@ -357,6 +361,30 @@ function registerIpc(): void {
   ipcMain.handle(IPC.recordWrite, (_e, id: number, data: ArrayBuffer) => recordWrite(id, data))
   ipcMain.handle(IPC.recordClose, (_e, id: number) => recordClose(id))
   ipcMain.handle(IPC.diagnostics, () => diagnostics())
+  ipcMain.handle(IPC.captureSources, async (_e, kind: 'screen' | 'window'): Promise<CaptureSource[]> => {
+    const list = await desktopCapturer.getSources({
+      types: [kind === 'window' ? 'window' : 'screen'],
+      thumbnailSize: { width: 320, height: 180 },
+      fetchWindowIcons: kind === 'window'
+    })
+    return list
+      .filter((s) => !(kind === 'window' && /^CarrotCam$/i.test(s.name)))
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        kind: kind === 'window' ? 'window' : 'screen',
+        thumbnail: s.thumbnail.isEmpty() ? '' : s.thumbnail.toDataURL(),
+        icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : null
+      }))
+  })
+  ipcMain.handle(IPC.webOpen, (_e, key: string, url: string, width: number, height: number, fps: number) =>
+    openWebSource(String(key), String(url), Number(width) || 1280, Number(height) || 720, Number(fps) || 30, (frame) => {
+      if (win && !win.isDestroyed()) win.webContents.send(IPC.evWebFrame, frame)
+    })
+  )
+  ipcMain.handle(IPC.webClose, (_e, key: string) => closeWebSource(String(key)))
+  ipcMain.handle(IPC.webReload, (_e, key: string) => reloadWebSource(String(key)))
+  ipcMain.handle(IPC.webRepaint, (_e, key: string) => repaintWebSource(String(key)))
   ipcMain.handle(IPC.openLogs, () => shell.openPath(dirname(log.transports.file.getFile().path)))
   ipcMain.handle(IPC.firewallFix, () => firewallFix())
   ipcMain.handle(
@@ -419,6 +447,7 @@ app.on('before-quit', () => {
   quitting = true
   settings.flush()
   closeAllRecordings()
+  closeAllWebSources()
 })
 
 app.on('will-quit', () => {

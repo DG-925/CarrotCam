@@ -20,6 +20,9 @@ import { onThumbs } from './thumbs'
 import { VoiceControl } from './voice'
 import { VOICE_COMMANDS, type Heard, type VoiceCommand } from './voice-commands'
 import { WHATS_NEW } from './whats-new'
+import { mixer } from './mixer'
+import { useScenes } from './scenes'
+import { initSources, switchScene } from './sources'
 import { idb } from './idb'
 import { parseCube } from './cube'
 import { renderBuiltIn } from './backgrounds'
@@ -30,7 +33,6 @@ export let engine: Engine
 const links = new Map<string, PhoneLink>()
 let localStream: MediaStream | null = null
 let recorder: MediaRecorder | null = null
-let recordMic: MediaStream | null = null
 let selectToken = 0
 let remoteTimer: ReturnType<typeof setTimeout> | null = null
 let hands: HandControl | null = null
@@ -57,6 +59,7 @@ export async function updateApp(patch: Partial<AppSettings>): Promise<void> {
   if (patch.handControl !== undefined) applyHandControl(next.handControl)
   if (patch.efficiency) applyEfficiency()
   if (patch.voice) applyVoice(next.voice, prevVoice)
+  if (patch.mixer || patch.voice) mixer.configure(next.mixer, next.voice.micId)
 }
 let prevVoice: AppSettings['voice'] | null = null
 
@@ -219,6 +222,17 @@ function runVoiceCommand(c: VoiceCommand): void {
       break
     case 'drawClear':
       clearDrawing()
+      break
+    case 'sceneNext':
+    case 'scenePrev':
+    case 'scene1':
+    case 'scene2':
+    case 'scene3':
+    case 'scene4':
+    case 'scene5':
+      if (switchScene(c === 'sceneNext' ? 'next' : c === 'scenePrev' ? 'prev' : Number(c.slice(5)))) {
+        toast({ kind: 'info', title: `Scene: ${useScenes.getState().activeScene().name}` })
+      }
       break
   }
 }
@@ -576,6 +590,18 @@ function onPhoneMessage({ deviceId, msg }: { deviceId: string; msg: PhoneToPc })
   }
 }
 
+/** Scenes: a second phone as a picture-in-picture source. */
+export async function startPhoneLayer(deviceId: string): Promise<MediaStreamTrack> {
+  if (st().source.id === `phone:${deviceId}`) throw new Error('This phone is already the main camera')
+  const link = links.get(deviceId)
+  if (!link) throw new Error('The phone is not connected')
+  return link.start(streamConfig())
+}
+
+export function stopPhoneLayer(deviceId: string): void {
+  if (st().source.id !== `phone:${deviceId}`) links.get(deviceId)?.stop()
+}
+
 export function phoneCommand(deviceId: string, action: string, value?: unknown): void {
   links.get(deviceId)?.command(action, value)
 }
@@ -629,6 +655,9 @@ async function onRemote(deviceId: string, action: string, value: unknown): Promi
     case 'snapshot':
       await takeSnapshot()
       break
+    case 'scene':
+      switchScene(Number(value) + 1)
+      break
     case 'record':
       await toggleRecording()
       break
@@ -651,7 +680,9 @@ function remoteState(): RemoteState {
     spotlight: e.lighting.spotlight,
     retouch: e.retouch.smooth > 0,
     privacy: e.privacy,
-    recording: recording.active
+    recording: recording.active,
+    scenes: useScenes.getState().scenes.map((s) => s.name),
+    scene: useScenes.getState().scenes.findIndex((s) => s.id === useScenes.getState().active)
   }
 }
 
@@ -720,14 +751,11 @@ export async function toggleRecording(): Promise<void> {
   }
   const fps = st().app.output.fps
   const stream = engine.captureStream(fps)
-  if (st().app.recordAudio) {
-    try {
-      recordMic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } })
-      recordMic.getAudioTracks().forEach((t) => stream.addTrack(t))
-    } catch {
-      toast({ kind: 'info', title: 'Recording without microphone' })
-    }
-  }
+  // sound: the mixer (microphone, desktop audio, video sources)
+  await mixer.hold('record')
+  const audio = mixer.track()
+  if (audio) stream.addTrack(audio)
+  if (st().app.mixer.mic.on && mixer.error('mic')) toast({ kind: 'info', title: 'Recording without the microphone', body: mixer.error('mic') ?? undefined })
   const types = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/webm;codecs=vp9,opus', 'video/webm']
   const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t)) ?? ''
   const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
@@ -752,8 +780,7 @@ export async function toggleRecording(): Promise<void> {
   rec.onstop = async () => {
     recorder = null
     stream.getTracks().forEach((t) => t.stop())
-    recordMic?.getTracks().forEach((t) => t.stop())
-    recordMic = null
+    mixer.release('record')
     useStore.setState({ recording: { active: false, startedAt: 0 } })
     pushRemoteState()
     await writes
@@ -892,6 +919,11 @@ function onShortcut(action: string): void {
     case 'voice-listen':
       listenOnce()
       break
+    default:
+      if (action.startsWith('scene-')) {
+        const n = Number(action.slice(6))
+        if (switchScene(n)) toast({ kind: 'info', title: `Scene: ${useScenes.getState().activeScene().name}` })
+      }
   }
 }
 
@@ -922,6 +954,11 @@ export async function initController(): Promise<void> {
   engine.setEffects(st().effects)
   engine.setHandControl(app.handControl)
   applyEfficiency()
+  mixer.configure(app.mixer, app.voice.micId)
+  initSources()
+  useScenes.subscribe((s, p) => {
+    if (s.active !== p.active || s.scenes !== p.scenes) pushRemoteState()
+  })
   useStore.subscribe((s, p) => {
     if (s.effects !== p.effects) {
       engine.setEffects(s.effects)

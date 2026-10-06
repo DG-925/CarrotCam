@@ -1,4 +1,5 @@
 import type { EffectSettings, Reaction } from '@shared/effects'
+import type { LayerSpec } from '@shared/scenes'
 
 /** Face geometry in source uv coordinates (0..1, y down). */
 export interface FaceData {
@@ -90,6 +91,13 @@ export type ToRender =
   | { t: 'inkClear' }
   /** Efficiency mode: lighter AI and thumbnail work for slower PCs */
   | { t: 'perf'; efficient: boolean }
+  /** scenes: the active scene's layers (null = just the camera) */
+  | { t: 'scene'; layers: LayerSpec[] | null }
+  /** scenes: a source's pictures (video stream, still image or raw pixels) */
+  | { t: 'layerStream'; key: string; stream: ReadableStream<VideoFrame> }
+  | { t: 'layerImage'; key: string; bitmap: ImageBitmap }
+  | { t: 'layerPixels'; key: string; fw: number; fh: number; x: number; y: number; w: number; h: number; data: ArrayBuffer }
+  | { t: 'layerDrop'; key: string }
 
 export type FromRender =
   | { t: 'ready'; gpu: string }

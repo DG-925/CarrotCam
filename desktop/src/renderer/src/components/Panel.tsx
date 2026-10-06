@@ -1,7 +1,10 @@
-import { Crop, Image, Layers, Palette, ScanFace, SlidersHorizontal, Sparkles, SunMedium, WandSparkles } from 'lucide-react'
+import { Crop, Image, Layers, MonitorPlay, Palette, ScanFace, SlidersHorizontal, Sparkles, SunMedium, WandSparkles } from 'lucide-react'
 import type { EffectSettings } from '@shared/effects'
+import { isPlainCamera } from '@shared/scenes'
+import { useScenes } from '@/lib/scenes'
 import { useStore, type PanelTab } from '@/lib/store'
 import { LooksPanel } from '@/panels/LooksPanel'
+import { SourcesPanel } from '@/panels/SourcesPanel'
 import { AdjustPanel } from '@/panels/AdjustPanel'
 import { FiltersPanel } from '@/panels/FiltersPanel'
 import { EffectsPanel } from '@/panels/EffectsPanel'
@@ -13,6 +16,7 @@ import { OverlaysPanel } from '@/panels/OverlaysPanel'
 
 const VIEWS: Record<PanelTab, () => React.JSX.Element> = {
   looks: LooksPanel,
+  sources: SourcesPanel,
   adjust: AdjustPanel,
   filters: FiltersPanel,
   background: BackgroundPanel,
@@ -25,6 +29,7 @@ const VIEWS: Record<PanelTab, () => React.JSX.Element> = {
 
 export const CATEGORIES: { value: PanelTab; label: string; icon: typeof Sparkles }[] = [
   { value: 'looks', label: 'Looks', icon: Sparkles },
+  { value: 'sources', label: 'Sources', icon: MonitorPlay },
   { value: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
   { value: 'filters', label: 'Filters', icon: Palette },
   { value: 'background', label: 'Background', icon: Image },
@@ -59,6 +64,11 @@ function inUse(tab: PanelTab, e: EffectSettings): boolean {
   }
 }
 
+function sceneInUse(): boolean {
+  const sc = useScenes.getState()
+  return !isPlainCamera(sc.activeScene())
+}
+
 export function Panel(): React.JSX.Element {
   const tab = useStore((s) => s.tab)
   // panels (and their live previews) only run while the Studio is shown
@@ -77,13 +87,14 @@ export function Rail(): React.JSX.Element {
   const tab = useStore((s) => s.tab)
   const setTab = useStore((s) => s.setTab)
   const effects = useStore((s) => s.effects)
+  useScenes((s) => s.scenes)
   return (
     <nav className="rail" aria-label="Effects">
       {CATEGORIES.map((c) => (
         <button key={c.value} className={`rail-item ${tab === c.value ? 'active' : ''}`} onClick={() => setTab(c.value)} title={c.label}>
           <c.icon size={20} />
           <span>{c.label}</span>
-          {tab !== c.value && inUse(c.value, effects) && <span className="rail-dot" />}
+          {tab !== c.value && (c.value === 'sources' ? sceneInUse() : inUse(c.value, effects)) && <span className="rail-dot" />}
         </button>
       ))}
     </nav>

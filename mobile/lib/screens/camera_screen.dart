@@ -436,6 +436,23 @@ class _RemoteSheet extends StatelessWidget {
               ]),
               const SizedBox(height: 2),
               Text('Changes apply to CarrotCam on ${link.pcName.isEmpty ? 'your PC' : link.pcName}.', style: TextStyle(color: t.muted)),
+              if (r.scenes.length > 1) ...[
+                const SectionLabel('Scenes'),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final (i, name) in r.scenes.indexed)
+                    ChoiceChip(
+                      label: Text(name),
+                      selected: r.scene == i,
+                      showCheckmark: false,
+                      selectedColor: CC.orange,
+                      labelStyle: TextStyle(color: r.scene == i ? Colors.white : t.text, fontWeight: FontWeight.w600),
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        link.sendRemote('scene', i);
+                      },
+                    ),
+                ]),
+              ],
               const SectionLabel('Looks'),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 for (final (id, label, icon) in kPresets)

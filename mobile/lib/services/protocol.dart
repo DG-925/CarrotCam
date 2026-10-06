@@ -48,6 +48,8 @@ class RemoteState {
     this.retouch = false,
     this.privacy = 'off',
     this.recording = false,
+    this.scenes = const [],
+    this.scene = 0,
   });
 
   final bool active;
@@ -59,6 +61,9 @@ class RemoteState {
   final bool retouch;
   final String privacy;
   final bool recording;
+  /// scene names on the PC (empty on older PC apps) and the active one
+  final List<String> scenes;
+  final int scene;
 
   factory RemoteState.fromJson(Map<String, dynamic> j) => RemoteState(
         active: j['active'] == true,
@@ -70,6 +75,8 @@ class RemoteState {
         retouch: j['retouch'] == true,
         privacy: (j['privacy'] ?? 'off') as String,
         recording: j['recording'] == true,
+        scenes: (j['scenes'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        scene: (j['scene'] as num?)?.toInt() ?? 0,
       );
 }
 

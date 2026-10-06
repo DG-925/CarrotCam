@@ -368,7 +368,18 @@ function Recording({ app }: { app: AppSettings }): React.JSX.Element {
       <h2>
         <Video size={17} /> Snapshots and recordings
       </h2>
-      <ToggleRow title="Record the microphone" hint="Include your voice in recordings" value={app.recordAudio} onChange={(v) => void updateApp({ recordAudio: v })} />
+      <ToggleRow
+        title="Record the microphone"
+        hint="More sound options in Studio → Sources → Audio mixer"
+        value={app.mixer.mic.on}
+        onChange={(v) => void updateApp({ recordAudio: v, mixer: { ...app.mixer, mic: { ...app.mixer.mic, on: v } } })}
+      />
+      <ToggleRow
+        title="Record desktop audio"
+        hint="The sound of your PC (videos, games, the call)"
+        value={app.mixer.desktop.on}
+        onChange={(v) => void updateApp({ mixer: { ...app.mixer, desktop: { ...app.mixer.desktop, on: v } } })}
+      />
       <div className="row">
         <div className="label">
           <b>Snapshots</b>

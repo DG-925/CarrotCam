@@ -5,6 +5,7 @@
 // Everything runs off the UI thread so the camera stays smooth even when the
 // window is busy, hidden or minimized.
 import { defaultEffects, type EffectSettings, type StyleEffect } from '@shared/effects'
+import type { LayerSpec } from '@shared/scenes'
 import { lookUniforms, whiteBalance } from './looks'
 import { AsyncReader, program, Target, texture, type Program } from './gl'
 import { Framer, affineToMat3, applyAffine, invertAffine, type Affine } from './framing'
@@ -72,6 +73,13 @@ let finalT: Target
 let packT: Target
 let statsT: Target
 let thumbsT: Target | null = null
+// scenes: other sources drawn around / over the camera picture
+let sceneT: Target
+let sceneLayers: LayerSpec[] | null = null
+const layerTex = new Map<string, { tex: WebGLTexture; w: number; h: number; token: number }>()
+const layerReaders = new Map<string, ReadableStreamDefaultReader<VideoFrame>>()
+let layerToken = 0
+let lastOut: Target | null = null
 const down: Target[] = []
 const up: Target[] = []
 
@@ -176,7 +184,8 @@ function init(msg: Extract<ToRender, { t: 'init' }>): void {
     display: program(gl, S.FS_DISPLAY),
     pack: program(gl, S.FS_PACK_BGR),
     copy: program(gl, S.FS_COPY),
-    thumbs: program(gl, S.FS_THUMBS)
+    thumbs: program(gl, S.FS_THUMBS),
+    layer: program(gl, S.FS_LAYER)
   }
 
   srcTex = texture(gl, 2, 2)
@@ -215,7 +224,7 @@ function init(msg: Extract<ToRender, { t: 'init' }>): void {
 }
 
 function allocateTargets(): void {
-  ;[base, den?.[0], den?.[1], maskT?.[0], maskT?.[1], comp, styled, finalT, packT, statsT, ...down, ...up].forEach((t) =>
+  ;[base, den?.[0], den?.[1], maskT?.[0], maskT?.[1], comp, styled, finalT, sceneT, packT, statsT, ...down, ...up].forEach((t) =>
     t?.dispose()
   )
   down.length = 0
@@ -226,6 +235,8 @@ function allocateTargets(): void {
   comp = new Target(gl, W, H)
   styled = new Target(gl, W, H)
   finalT = new Target(gl, W, H, gl.NEAREST)
+  sceneT = new Target(gl, W, H, gl.NEAREST)
+  lastOut = null
   packT = new Target(gl, (W * 3) / 4, H, gl.NEAREST)
   statsT = new Target(gl, 32, 18)
   let w = W
@@ -850,15 +861,112 @@ function setCompositeUniforms(
 }
 
 /** Shows the frame in the preview and feeds the virtual camera. */
+// ---- scenes ---------------------------------------------------------------------------
+/** Draws the active scene's layers; returns the picture to show (the camera alone when there is no scene). */
+function composeScene(): Target {
+  // privacy hides everything, screen shares included: show only the camera picture
+  if (!sceneLayers || effects.privacy === 'blur' || effects.privacy === 'brb') return finalT
+  // frozen: keep the last scene as it was
+  if (effects.privacy === 'freeze' && lastOut) return lastOut
+  sceneT.bind()
+  gl.clearColor(0, 0, 0, 1)
+  gl.clear(gl.COLOR_BUFFER_BIT)
+  const p = use(P.layer)
+  gl.uniform2f(p.u.uRes, W, H)
+  gl.enable(gl.BLEND)
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+  gl.enable(gl.SCISSOR_TEST)
+  for (const l of sceneLayers) {
+    const r = l.rect
+    const x0 = Math.max(0, Math.floor(r.x * W))
+    const y0 = Math.max(0, Math.floor(r.y * H))
+    const x1 = Math.min(W, Math.ceil((r.x + r.w) * W))
+    const y1 = Math.min(H, Math.ceil((r.y + r.h) * H))
+    if (x1 <= x0 || y1 <= y0) continue
+    let tex: WebGLTexture | null = null
+    if (l.key === 'camera') tex = finalT.tex
+    else if (l.key) tex = layerTex.get(l.key)?.tex ?? null
+    if (l.key && !tex) continue // not ready yet
+    gl.scissor(x0, y0, x1 - x0, y1 - y0)
+    gl.uniform4f(p.u.uRect, r.x, r.y, r.w, r.h)
+    gl.uniform4f(p.u.uCrop, l.crop.l, l.crop.t, l.crop.r, l.crop.b)
+    gl.uniform1f(p.u.uOpacity, l.opacity)
+    gl.uniform1f(p.u.uRadius, (l.radius * H) / 720)
+    gl.uniform1i(p.u.uMode, l.key ? (l.bgra ? 2 : 0) : 1)
+    const c = l.color ?? [0, 0, 0, 1]
+    gl.uniform4f(p.u.uColor, c[0], c[1], c[2], c[3])
+    if (tex) bindTex(0, tex, p.u.uTex)
+    draw()
+  }
+  gl.disable(gl.SCISSOR_TEST)
+  gl.disable(gl.BLEND)
+  lastOut = sceneT
+  return sceneT
+}
+
+function layerTarget(key: string, w: number, h: number): { tex: WebGLTexture; w: number; h: number; token: number } {
+  let t = layerTex.get(key)
+  if (!t) {
+    t = { tex: texture(gl, 0, 0), w: 0, h: 0, token: 0 }
+    layerTex.set(key, t)
+  }
+  if (t.w !== w || t.h !== h) {
+    gl.bindTexture(gl.TEXTURE_2D, t.tex)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    t.w = w
+    t.h = h
+  }
+  return t
+}
+
+async function runLayerStream(key: string, stream: ReadableStream<VideoFrame>): Promise<void> {
+  dropLayer(key, false)
+  const token = ++layerToken
+  const reader = stream.getReader()
+  layerReaders.set(key, reader)
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done || !gl) break
+      try {
+        const t = layerTarget(key, value.displayWidth, value.displayHeight)
+        t.token = token
+        gl.bindTexture(gl.TEXTURE_2D, t.tex)
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, value)
+      } catch {
+        /* frame size changed mid-upload: the next frame fixes it */
+      } finally {
+        value.close()
+      }
+    }
+  } catch {
+    /* capture ended */
+  } finally {
+    if (layerReaders.get(key) === reader) layerReaders.delete(key)
+  }
+}
+
+function dropLayer(key: string, deleteTexture = true): void {
+  const r = layerReaders.get(key)
+  layerReaders.delete(key)
+  r?.cancel().catch(() => {})
+  if (deleteTexture) {
+    const t = layerTex.get(key)
+    if (t) gl?.deleteTexture(t.tex)
+    layerTex.delete(key)
+  }
+}
+
 function present(now: number, origTex?: WebGLTexture): void {
+  const out = composeScene()
   // preview
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.viewport(0, 0, W, H)
   let p = use(P.display)
-  bindTex(0, finalT.tex, p.u.uTex)
-  bindTex(1, origTex ?? finalT.tex, p.u.uOrig)
+  bindTex(0, out.tex, p.u.uTex)
+  bindTex(1, origTex ?? out.tex, p.u.uOrig)
   gl.uniform2f(p.u.uRes, W, H)
-  const showCompare = compare >= 0 && !snapshotPending && !!origTex
+  const showCompare = compare >= 0 && !snapshotPending && !!origTex && out === finalT
   gl.uniform1f(p.u.uCompare, showCompare ? compare : -1)
   draw()
   statFrames++
@@ -875,7 +983,7 @@ function present(now: number, origTex?: WebGLTexture): void {
   if (vcamEnabled && vcamReader) {
     packT.bind()
     p = use(P.pack)
-    bindTex(0, finalT.tex, p.u.uTex)
+    bindTex(0, out.tex, p.u.uTex)
     draw()
     vcamReader.read(packT.w, packT.h)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
@@ -1091,6 +1199,35 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
       break
     case 'perf':
       efficient = msg.efficient
+      break
+    case 'scene':
+      sceneLayers = msg.layers
+      lastOut = null
+      break
+    case 'layerStream':
+      if (gl) void runLayerStream(msg.key, msg.stream)
+      break
+    case 'layerImage': {
+      if (!gl) {
+        msg.bitmap.close()
+        break
+      }
+      dropLayer(msg.key, false)
+      const t = layerTarget(msg.key, msg.bitmap.width, msg.bitmap.height)
+      gl.bindTexture(gl.TEXTURE_2D, t.tex)
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, msg.bitmap)
+      msg.bitmap.close()
+      break
+    }
+    case 'layerPixels': {
+      if (!gl) break
+      const t = layerTarget(msg.key, msg.fw, msg.fh)
+      gl.bindTexture(gl.TEXTURE_2D, t.tex)
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, msg.x, msg.y, msg.w, msg.h, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(msg.data))
+      break
+    }
+    case 'layerDrop':
+      dropLayer(msg.key)
       break
     case 'ink':
       onInk(msg.pointer, msg.drawing)

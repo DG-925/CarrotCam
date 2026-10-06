@@ -627,3 +627,31 @@ void main() {
   c = mix(c, vec3(0.08, 0.075, 0.09) + c * 0.84, p.w);
   outColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`
+
+/** Scenes: draws one source into the scene (scissored to its box, alpha blended). */
+export const FS_LAYER = HEADER + /* glsl */ `
+uniform sampler2D uTex;
+uniform vec4 uRect;     // x, y, w, h in output uv (y down)
+uniform vec4 uCrop;     // left, top, right, bottom fractions
+uniform vec2 uRes;
+uniform float uOpacity;
+uniform float uRadius;  // px
+uniform int uMode;      // 0 texture, 1 solid color, 2 texture in BGRA order
+uniform vec4 uColor;
+void main() {
+  vec2 local = (vUv - uRect.xy) / uRect.zw;
+  if (local.x < 0.0 || local.y < 0.0 || local.x > 1.0 || local.y > 1.0) discard;
+  vec4 c;
+  if (uMode == 1) {
+    c = uColor;
+  } else {
+    vec2 st = vec2(mix(uCrop.x, 1.0 - uCrop.z, local.x), mix(uCrop.y, 1.0 - uCrop.w, local.y));
+    c = texture(uTex, st);
+    if (uMode == 2) c = c.bgra;
+  }
+  vec2 size = uRect.zw * uRes;
+  vec2 q = abs(local * size - size * 0.5) - (size * 0.5 - uRadius);
+  float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uRadius;
+  float a = clamp(0.5 - d, 0.0, 1.0);
+  outColor = vec4(c.rgb, c.a * a * uOpacity);
+}`
