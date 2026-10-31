@@ -10,6 +10,7 @@ import '../services/link.dart';
 import '../services/protocol.dart';
 import '../services/settings.dart';
 import '../services/system.dart';
+import '../services/usb_listener.dart';
 import '../theme.dart';
 import 'camera_screen.dart';
 import 'scan_screen.dart';
@@ -26,11 +27,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _autoTried = false;
   bool _usbAutoTried = false;
 
+  // USB cable: the PC connects to the phone (see UsbListener)
+  late final UsbListener _usb = UsbListener(
+    discovery: discovery,
+    deviceId: () => settings.deviceId,
+    willAccept: _usbWillAccept,
+    onSocket: _onUsbSocket,
+  );
+  final Map<String, String> _usbCodes = {}; // pairing codes typed for PCs found over USB
+  final Set<String> _usbDeclined = {};
+  bool _askingUsb = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     discovery.start();
+    _usb.start();
+    discovery.addListener(_forgetUsbDeclines);
     discovery.addListener(_maybeAutoConnect);
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoConnect());
   }
@@ -39,7 +53,58 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     discovery.removeListener(_maybeAutoConnect);
+    discovery.removeListener(_forgetUsbDeclines);
+    _usb.stop();
     super.dispose();
+  }
+
+  /// Unplugging the cable resets "not now" answers.
+  void _forgetUsbDeclines() {
+    if (!discovery.usbActive) _usbDeclined.clear();
+  }
+
+  /// Answer a PC over the cable only when we're free (or reconnecting) and know it.
+  bool _usbWillAccept(UsbPc pc) {
+    if (_askingUsb) return false;
+    final st = link.state;
+    if (st != LinkState.idle && st != LinkState.error && st != LinkState.reconnecting) return false;
+    final known = settings.pcs[pc.id];
+    if ((known?.token.isNotEmpty ?? false) || _usbCodes.containsKey(pc.id)) return true;
+    // a PC we never paired with: ask for its code once (not while another screen is open)
+    if (!_usbDeclined.contains(pc.id) && !_busy && mounted) _askUsbCode(pc);
+    return false;
+  }
+
+  Future<void> _askUsbCode(UsbPc pc) async {
+    _askingUsb = true;
+    try {
+      final code = await _askCode(pc.name, usb: true);
+      if (code == null) {
+        _usbDeclined.add(pc.id);
+      } else {
+        _usbCodes[pc.id] = code;
+      }
+    } finally {
+      _askingUsb = false;
+    }
+  }
+
+  void _onUsbSocket(WebSocket ws, UsbPc pc) {
+    final known = settings.pcs[pc.id];
+    final target = ConnectTarget(
+      hosts: {pc.address, ...?known?.hosts}.toList(),
+      port: pc.port,
+      name: known?.name ?? pc.name,
+      id: pc.id,
+      token: known?.token.isNotEmpty == true ? known!.token : null,
+      code: _usbCodes.remove(pc.id),
+    );
+    if (_busy) {
+      // the camera screen is open (e.g. reconnecting): take over right there
+      link.adopt(ws, target, pc.address);
+      return;
+    }
+    _open(() => link.adopt(ws, target, pc.address));
   }
 
   @override
@@ -106,14 +171,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// closes, so discovery events can't start a second one in parallel.
   bool _busy = false;
 
-  Future<void> _connect(ConnectTarget target) async {
+  Future<void> _connect(ConnectTarget target) => _open(() => link.connect(target));
+
+  /// Opens the camera screen with a connection started by [start].
+  Future<void> _open(void Function() start) async {
     if (_busy) return;
     _busy = true;
     try {
       if (!await _ensureCamera()) return;
       if (!mounted) return;
       HapticFeedback.lightImpact();
-      link.connect(target);
+      start();
       await Navigator.of(context).push(smoothRoute(const CameraScreen()));
       if (mounted) setState(() {});
     } finally {
@@ -146,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _connect(ConnectTarget(hosts: [pc.host], port: pc.port, name: pc.name, id: pc.id, code: code));
   }
 
-  Future<String?> _askCode(String name) {
+  Future<String?> _askCode(String name, {bool usb = false}) {
     final ctrl = TextEditingController();
     return showModalBottomSheet<String>(
       context: context,
@@ -159,7 +227,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             Text('Pair with $name', style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
-            Text('Enter the 6-digit code shown on the PC (camera menu → Phones).', style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
+            Text(
+                usb
+                    ? 'Connected by USB cable. Enter the 6-digit code shown on the PC (camera menu, then Phones) to pair once.'
+                    : 'Enter the 6-digit code shown on the PC (camera menu, then Phones).',
+                style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
             const SizedBox(height: 18),
             TextField(
               controller: ctrl,
@@ -449,9 +521,9 @@ class _UsbCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       pc != null
-                          ? 'Tap ${pc.name} above to start'
+                          ? '${pc.name} connects by itself'
                           : on
-                              ? 'Open CarrotCam on your PC'
+                              ? 'Open CarrotCam on your PC: it connects by itself'
                               : 'No Wi-Fi needed, and the phone charges',
                       style: TextStyle(color: t.muted, fontSize: 13),
                     ),
@@ -461,8 +533,8 @@ class _UsbCard extends StatelessWidget {
               if (!on) ...[
                 const SizedBox(height: 14),
                 for (final (i, step) in (android
-                        ? ['Plug your phone into the PC', 'Turn on USB tethering', 'Your PC shows up above: tap it']
-                        : ['Plug your iPhone into the PC', 'Turn on Personal Hotspot in Settings', 'Your PC shows up above: tap it'])
+                        ? ['Plug your phone into the PC', 'Turn on USB tethering', 'Keep this app open: the PC connects by itself']
+                        : ['Plug your iPhone into the PC', 'Turn on Personal Hotspot in Settings', 'Keep this app open: the PC connects by itself'])
                     .indexed)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),

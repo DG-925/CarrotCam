@@ -1,6 +1,7 @@
 // Scenes store: the user's scenes and sources (saved on this PC).
 import { create } from 'zustand'
 import {
+  FULL,
   NO_CROP,
   cameraSource,
   defaultScenes,
@@ -58,6 +59,20 @@ interface ScenesStore extends ScenesState {
   removeSource: (id: string) => void
   moveSource: (id: string, step: number) => void
   select: (id: string | null) => void
+  /** one-click arrangements of the camera and the main source (screen, window…) */
+  applyLayout: (layout: QuickLayout, outAspect: number) => void
+}
+
+export type QuickLayout = 'me' | 'corner' | 'over' | 'side'
+
+/** The biggest visible source that is not the camera (usually a screen or window). */
+export function mainSource(scene: Scene): SceneSource | undefined {
+  let best: SceneSource | undefined
+  for (const s of scene.sources) {
+    if (s.kind === 'camera' || s.kind === 'text' || s.kind === 'color') continue
+    if (!best || s.rect.w * s.rect.h > best.rect.w * best.rect.h) best = s
+  }
+  return best
 }
 
 export const useScenes = create<ScenesStore>((set, get) => ({
@@ -155,7 +170,67 @@ export const useScenes = create<ScenesStore>((set, get) => ({
     })
   },
 
-  select: (id) => set({ selected: id })
+  select: (id) => set({ selected: id }),
+
+  applyLayout: (layout, outAspect) => {
+    const scene = get().activeScene()
+    const cam = scene.sources.find((s) => s.kind === 'camera')
+    const main = mainSource(scene)
+    if (!cam) return
+    const key = main ? mediaKey(main) : null
+    const size = key ? get().sizes[key] : undefined
+    const aspect = size ? size.w / size.h : main ? (main.rect.w * outAspect) / main.rect.h : outAspect
+    const camPatch: Partial<SceneSource> = { visible: true, opacity: 1, crop: { ...NO_CROP } }
+    let mainPatch: Partial<SceneSource> | null = main ? { visible: true, crop: { ...NO_CROP }, radius: 0 } : null
+    const cutout = layout === 'over'
+    switch (layout) {
+      case 'me':
+        Object.assign(camPatch, { rect: { ...FULL }, radius: 0 })
+        if (mainPatch) mainPatch = { visible: false }
+        break
+      case 'corner': {
+        const w = 0.27
+        const h = w // the camera has the output's shape
+        Object.assign(camPatch, { rect: { x: 1 - w - 0.025, y: 1 - h - 0.025 * outAspect, w, h }, radius: 18 })
+        if (mainPatch) mainPatch.rect = layoutRect('fit', aspect, outAspect)
+        break
+      }
+      case 'over': {
+        const w = 0.55
+        Object.assign(camPatch, { rect: { x: 1 - w, y: 1 - w, w, h: w }, radius: 0 })
+        if (mainPatch) mainPatch.rect = layoutRect('fit', aspect, outAspect)
+        break
+      }
+      case 'side':
+        // the camera keeps its middle half: a tall picture on the right
+        Object.assign(camPatch, { rect: { x: 0.5, y: 0, w: 0.5, h: 1 }, crop: { l: 0.25, t: 0, r: 0.25, b: 0 }, radius: 0 })
+        if (mainPatch) mainPatch.rect = layoutRect('left', aspect, outAspect)
+        break
+    }
+    const active = get().active
+    set({
+      scenes: get().scenes.map((sc) => {
+        if (sc.id !== active) return sc
+        let sources = sc.sources.map((s) =>
+          s.id === cam.id
+            ? { ...s, ...camPatch, settings: { ...s.settings, cutout } }
+            : main && s.id === main.id && mainPatch
+              ? { ...s, ...mainPatch }
+              : s
+        )
+        // the camera goes in front of the main source
+        if (main) {
+          const ci = sources.findIndex((s) => s.id === cam.id)
+          const mi = sources.findIndex((s) => s.id === main.id)
+          if (ci < mi) {
+            const [c] = sources.splice(ci, 1)
+            sources = [...sources.slice(0, mi), c, ...sources.slice(mi)]
+          }
+        }
+        return { ...sc, sources }
+      })
+    })
+  }
 }))
 
 // save (debounced); runtime fields are not saved

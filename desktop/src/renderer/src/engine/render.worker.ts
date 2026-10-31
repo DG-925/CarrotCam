@@ -80,6 +80,12 @@ const layerTex = new Map<string, { tex: WebGLTexture; w: number; h: number; toke
 const layerReaders = new Map<string, ReadableStreamDefaultReader<VideoFrame>>()
 let layerToken = 0
 let lastOut: Target | null = null
+// scene switch: the old picture fades out over the new one
+const FADE_MS = 320
+let fadeT: Target
+let fadeStart = -1
+let fadeSwitchAt = 0
+let shownT: Target | null = null
 // live captions, drawn over the whole output
 let captionTex: WebGLTexture | null = null
 let captionRect: { x: number; y: number; w: number; h: number } | null = null
@@ -239,6 +245,10 @@ function allocateTargets(): void {
   styled = new Target(gl, W, H)
   finalT = new Target(gl, W, H, gl.NEAREST)
   sceneT = new Target(gl, W, H, gl.NEAREST)
+  fadeT?.dispose()
+  fadeT = new Target(gl, W, H)
+  fadeStart = -1
+  shownT = null
   lastOut = null
   packT = new Target(gl, (W * 3) / 4, H, gl.NEAREST)
   statsT = new Target(gl, 32, 18)
@@ -990,20 +1000,66 @@ function drawCaptions(out: Target): void {
   gl.disable(gl.BLEND)
 }
 
+/** Copies the camera picture to sceneT so things can be drawn over it (finalT is reused while frozen). */
+function ownCopy(out: Target): Target {
+  if (out !== finalT) return out
+  sceneT.bind()
+  const cp = use(P.copy)
+  bindTex(0, finalT.tex, cp.u.uTex)
+  draw()
+  return sceneT
+}
+
+/** Keeps the picture on screen right now, to fade it out over the next scene. */
+function startFade(): void {
+  if (!shownT || !fadeT) return
+  fadeT.bind()
+  const cp = use(P.copy)
+  bindTex(0, shownT.tex, cp.u.uTex)
+  draw()
+  fadeStart = fadeSwitchAt = performance.now()
+}
+
+/** The new scene's sources that are still starting (window captures take a moment). */
+function sceneLoading(): boolean {
+  return !!sceneLayers?.some((l) => l.key && l.key !== 'camera' && !layerTex.has(l.key))
+}
+
+function drawFade(out: Target, now: number): Target {
+  // keep the old picture until the new scene is ready (at most 1.5 s), then fade
+  if (now - fadeSwitchAt < 1500 && sceneLoading()) fadeStart = now
+  const t = (now - fadeStart) / FADE_MS
+  if (fadeStart < 0 || t >= 1 || t < 0) {
+    fadeStart = -1
+    return out
+  }
+  out = ownCopy(out)
+  out.bind()
+  const p = use(P.layer)
+  gl.enable(gl.BLEND)
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+  gl.uniform2f(p.u.uRes, W, H)
+  gl.uniform4f(p.u.uRect, 0, 0, 1, 1)
+  gl.uniform4f(p.u.uCrop, 0, 0, 0, 0)
+  // ease out: quick at first, soft at the end
+  gl.uniform1f(p.u.uOpacity, (1 - t) * (1 - t))
+  gl.uniform1f(p.u.uRadius, 0)
+  gl.uniform1i(p.u.uMode, 0)
+  bindTex(0, fadeT.tex, p.u.uTex)
+  draw()
+  gl.disable(gl.BLEND)
+  return out
+}
+
 function present(now: number, origTex?: WebGLTexture): void {
   let out = composeScene()
   const plainCamera = out === finalT
+  if (fadeStart >= 0 && effects.privacy !== 'freeze') out = drawFade(out, performance.now())
   if (captionTex && captionRect && effects.privacy !== 'freeze') {
-    // draw on a copy when the output is the camera picture itself (it is reused while frozen)
-    if (out === finalT) {
-      sceneT.bind()
-      const cp = use(P.copy)
-      bindTex(0, finalT.tex, cp.u.uTex)
-      draw()
-      out = sceneT
-    }
+    out = ownCopy(out)
     drawCaptions(out)
   }
+  shownT = out
   // preview
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.viewport(0, 0, W, H)
@@ -1246,6 +1302,7 @@ scope.onmessage = (e: MessageEvent<ToRender>) => {
       efficient = msg.efficient
       break
     case 'scene':
+      if (msg.fade && gl && effects.privacy === 'off') startFade()
       sceneLayers = msg.layers
       lastOut = null
       if (gl) syncMlConfig()

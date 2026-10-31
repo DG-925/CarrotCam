@@ -3275,3 +3275,88 @@ details.crop summary {
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
+
+/* ---- quick layouts (Sources) ---- */
+.quick-layouts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.ql {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 4px 5px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.ql:hover {
+  border-color: var(--accent-line);
+  background: var(--hover);
+}
+.ql:active {
+  background: var(--press);
+}
+.ql-pic {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.ql-pic i {
+  position: absolute;
+  display: block;
+}
+.ql-screen {
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  inset: 14% 10%;
+  border-radius: 2px;
+}
+.ql-me {
+  background: var(--accent);
+  border-radius: 2px;
+}
+.ql-pic.ql-me .ql-me {
+  inset: 0;
+}
+.ql-pic.ql-me .ql-screen {
+  display: none;
+}
+.ql-pic.ql-corner .ql-me {
+  right: 5%;
+  bottom: 8%;
+  width: 27%;
+  height: 27%;
+  border-radius: 3px;
+}
+.ql-pic.ql-over .ql-me {
+  right: 4%;
+  bottom: 0;
+  width: 26%;
+  height: 52%;
+  border-radius: 50% 50% 0 0;
+}
+.ql-pic.ql-side .ql-screen {
+  inset: 22% 52% 22% 3%;
+}
+.ql-pic.ql-side .ql-me {
+  inset: 0 0 0 50%;
+  border-radius: 0;
+}
+.ql-label {
+  font-size: 10.5px;
+  line-height: 1.2;
+  min-height: 2.4em;
+  display: flex;
+  align-items: center;
+  text-align: center;
+  max-width: 100%;
+}

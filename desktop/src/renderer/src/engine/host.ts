@@ -187,8 +187,9 @@ export class Engine {
   }
 
   // ---- scenes ----
-  setScene(layers: LayerSpec[] | null): void {
-    this.post({ t: 'scene', layers })
+  /** fade: cross-fade from the current picture (when switching scenes) */
+  setScene(layers: LayerSpec[] | null, fade = false): void {
+    this.post({ t: 'scene', layers, fade })
   }
 
   /** Streams a source's video into the scene (screen, window, video file, camera). */

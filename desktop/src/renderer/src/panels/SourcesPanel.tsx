@@ -32,7 +32,7 @@ import type { AppSettings } from '@shared/app'
 import { updateApp } from '@/lib/controller'
 import { idb } from '@/lib/idb'
 import { mixer, type ChannelId } from '@/lib/mixer'
-import { KIND_LABEL, layoutRect, mediaKey, useScenes } from '@/lib/scenes'
+import { KIND_LABEL, layoutRect, mainSource, mediaKey, useScenes, type QuickLayout } from '@/lib/scenes'
 import { restartSource } from '@/lib/sources'
 import { toast, useStore } from '@/lib/store'
 import { Section, Segmented, Slider, Switch } from '@/components/ui'
@@ -182,6 +182,39 @@ function AddMenu({ onClose, onPick }: { onClose: () => void; onPick: (k: string)
   )
 }
 
+// ---- quick layouts ---------------------------------------------------------------------------
+const LAYOUTS: { id: QuickLayout; label: string }[] = [
+  { id: 'me', label: 'Just me' },
+  { id: 'corner', label: 'Screen + me' },
+  { id: 'over', label: 'Me over screen' },
+  { id: 'side', label: 'Side by side' }
+]
+
+function QuickLayouts(): React.JSX.Element | null {
+  const scene = useScenes((s) => s.scenes.find((x) => x.id === s.active))
+  const output = useStore((s) => s.app.output)
+  const main = scene ? mainSource(scene) : undefined
+  if (!scene || !main) return null
+  return (
+    <div className="quick-layouts" role="group" aria-label="Quick layouts">
+      {LAYOUTS.map((l) => (
+        <button
+          key={l.id}
+          className="ql"
+          title={l.label}
+          onClick={() => useScenes.getState().applyLayout(l.id, output.width / output.height)}
+        >
+          <span className={`ql-pic ql-${l.id}`} aria-hidden>
+            <i className="ql-screen" />
+            <i className="ql-me" />
+          </span>
+          <span className="ql-label">{l.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ---- the list --------------------------------------------------------------------------------
 function SourceRow({ s }: { s: SceneSource }): React.JSX.Element {
   const selected = useScenes((x) => x.selected === s.id)
@@ -270,6 +303,7 @@ function Sources(): React.JSX.Element {
         </div>
       }
     >
+      <QuickLayouts />
       <div className="list">
         {list.map((s) => (
           <SourceRow key={s.id} s={s} />

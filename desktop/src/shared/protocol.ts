@@ -6,6 +6,17 @@ export const DEFAULT_PORT = 47820
 export const DISCOVERY_PORT = 47821
 export const DISCOVERY_PROBE = 'CARROTCAM_DISCOVER'
 export const MDNS_TYPE = 'carrotcam'
+/**
+ * USB cable: the PC dials the phone. Windows usually treats a phone's USB
+ * tethering network as "public" and its firewall blocks phones connecting in,
+ * but it never blocks the PC connecting out. The PC broadcasts a hello on
+ * USB_HELLO_PORT; a phone that hears it on its USB interface answers, and the
+ * PC opens a WebSocket to the phone on PHONE_WS_PORT. The session after that
+ * is exactly the same as when the phone connects in.
+ */
+export const USB_HELLO_PORT = 47823
+export const USB_HELLO = 'CARROTCAM_PC_HELLO'
+export const PHONE_WS_PORT = 47824
 
 export interface PhoneInfo {
   id: string

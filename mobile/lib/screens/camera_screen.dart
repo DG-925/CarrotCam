@@ -8,6 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../main.dart';
 import '../services/link.dart';
 import '../services/protocol.dart';
+import '../services/system.dart';
 import '../theme.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -50,8 +51,13 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
-    // Android pauses the camera in the background; reopen it when we're back.
-    if (s == AppLifecycleState.resumed && link.isConnected) link.openCamera(deviceId: link.cameraId);
+    // Android may pause the camera in the background; reopen it when we're back.
+    // With the streaming service the camera keeps running in the background;
+    // only reopen it if it was stopped anyway (older phones, service refused).
+    if (s != AppLifecycleState.resumed || !link.isConnected) return;
+    if (!link.cameraFlowing) link.openCamera(deviceId: link.cameraId);
+    // Android only starts the service while the app is on screen: catch up if it connected in the background
+    unawaited(startStreamService(link.pcName));
   }
 
   void _onLink() {

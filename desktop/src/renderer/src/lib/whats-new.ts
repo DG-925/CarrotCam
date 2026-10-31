@@ -6,6 +6,26 @@ export interface WhatsNew {
 
 export const WHATS_NEW: WhatsNew[] = [
   {
+    version: '1.7.0',
+    items: [
+      {
+        icon: 'phone',
+        title: 'USB cable that just works',
+        body: 'Plug in your phone, turn on USB tethering and open CarrotCam: the PC finds it by itself, even when Windows Firewall blocks Wi-Fi connections.'
+      },
+      {
+        icon: 'phone',
+        title: 'Keeps going with the screen off',
+        body: 'Turn off your phone screen or switch apps: the camera keeps streaming. A small notification shows while it is your webcam.'
+      },
+      {
+        icon: 'layout',
+        title: 'Quick layouts and smooth scene changes',
+        body: 'In Sources, one click for "Screen + me", "Me over screen" or "Side by side". Switching scenes now fades softly.'
+      }
+    ]
+  },
+  {
     version: '1.6.0',
     items: [
       {

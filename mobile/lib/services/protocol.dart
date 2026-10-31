@@ -8,6 +8,12 @@ const int kDefaultPort = 47820;
 const int kDiscoveryPort = 47821;
 const String kDiscoveryProbe = 'CARROTCAM_DISCOVER';
 const String kMdnsType = '_carrotcam._tcp';
+
+/// USB cable: the PC dials the phone (Windows' firewall often blocks phones
+/// connecting in over USB tethering, but never the PC connecting out).
+const int kUsbHelloPort = 47823;
+const String kUsbHello = 'CARROTCAM_PC_HELLO';
+const int kPhoneWsPort = 47824;
 const String kGithubRepo = 'DG-925/CarrotCam';
 
 /// Parsed `carrotcam://pair?h=ip1,ip2&p=port&c=code&n=name&id=pcId` QR payload.

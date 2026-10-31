@@ -92,7 +92,7 @@ export type ToRender =
   /** Efficiency mode: lighter AI and thumbnail work for slower PCs */
   | { t: 'perf'; efficient: boolean }
   /** scenes: the active scene's layers (null = just the camera) */
-  | { t: 'scene'; layers: LayerSpec[] | null }
+  | { t: 'scene'; layers: LayerSpec[] | null; fade?: boolean }
   /** scenes: a source's pictures (video stream, still image or raw pixels) */
   | { t: 'layerStream'; key: string; stream: ReadableStream<VideoFrame> }
   | { t: 'layerImage'; key: string; bitmap: ImageBitmap }

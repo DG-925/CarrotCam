@@ -11,6 +11,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'protocol.dart';
 import 'settings.dart';
+import 'system.dart';
 
 enum LinkState { idle, connecting, connected, streaming, reconnecting, error }
 
@@ -79,6 +80,10 @@ class CarrotLink extends ChangeNotifier {
   bool _rendererReady = false;
 
   bool get isStreaming => state == LinkState.streaming;
+
+  /// When frames last went out (stats); used to tell if the camera survived the background.
+  DateTime lastFrameSentAt = DateTime.fromMillisecondsSinceEpoch(0);
+  bool get cameraFlowing => isStreaming && DateTime.now().difference(lastFrameSentAt) < const Duration(seconds: 4);
   bool get isConnected => state == LinkState.connected || state == LinkState.streaming;
 
   // ---------------------------------------------------------------- camera
@@ -199,7 +204,11 @@ class CarrotLink extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- session
+  /// Bumped by every new connection, so a slow attempt can't replace a newer one.
+  int _gen = 0;
+
   Future<void> connect(ConnectTarget target) async {
+    final gen = ++_gen;
     _reconnectTimer?.cancel();
     _closing = false;
     _target = target;
@@ -216,13 +225,46 @@ class CarrotLink extends ChangeNotifier {
         break;
       } catch (_) {}
     }
-    if (ws == null) {
-      _fail('Could not reach ${target.name}. Make sure CarrotCam is open on the PC and you are on the same Wi-Fi.');
+    if (gen != _gen) {
+      // the PC connected to us over USB meanwhile
+      await ws?.close();
       return;
     }
+    if (ws == null) {
+      _fail('Could not reach ${target.name}. Make sure CarrotCam is open on the PC and you are on the same Wi-Fi, or use a USB cable.');
+      return;
+    }
+    await _begin(ws, target, await _transportFor(_connectedHost));
+  }
+
+  /// USB cable: the PC opened the connection to us. Same session from here on.
+  Future<void> adopt(WebSocket ws, ConnectTarget target, String host) async {
+    _gen++;
+    _reconnectTimer?.cancel();
+    _closing = false;
+    final old = _ws;
+    _ws = null;
+    if (old != null) {
+      // the old (Wi-Fi) connection is being replaced: don't treat its end as a drop
+      _replacing = true;
+      await old.close(4002, 'replaced by usb').catchError((_) {});
+      _replacing = false;
+    }
+    _target = target;
+    pcName = target.name;
+    error = null;
+    _connectedHost = host;
+    if (state != LinkState.streaming && state != LinkState.connected) state = LinkState.connecting;
+    notifyListeners();
+    await _begin(ws, target, 'usb');
+  }
+
+  bool _replacing = false;
+
+  Future<void> _begin(WebSocket ws, ConnectTarget target, String transport) async {
     _ws = ws;
     ws.pingInterval = const Duration(seconds: 5);
-    ws.listen(_onMessage, onDone: _onClosed, onError: (_) => _onClosed(), cancelOnError: true);
+    ws.listen(_onMessage, onDone: () => _onClosed(ws), onError: (_) => _onClosed(ws), cancelOnError: true);
 
     final app = await PackageInfo.fromPlatform();
     _send({
@@ -234,7 +276,7 @@ class CarrotLink extends ChangeNotifier {
         'model': settings.model,
         'platform': Platform.operatingSystem,
         'app': app.version,
-        'transport': await _transportFor(_connectedHost),
+        'transport': transport,
       },
       if (target.code != null) 'code': target.code,
       if (target.token != null) 'token': target.token,
@@ -262,6 +304,7 @@ class CarrotLink extends ChangeNotifier {
     }
     state = LinkState.error;
     error = message;
+    unawaited(stopStreamService());
     notifyListeners();
   }
 
@@ -279,7 +322,8 @@ class CarrotLink extends ChangeNotifier {
     });
   }
 
-  void _onClosed() {
+  void _onClosed(WebSocket from) {
+    if (_replacing || from != _ws) return; // an older socket that was replaced
     _ws = null;
     _statusTimer?.cancel();
     _closePeer();
@@ -328,6 +372,8 @@ class CarrotLink extends ChangeNotifier {
         _statusTimer = Timer.periodic(const Duration(seconds: 5), (_) => _sendStatus());
         _sendStatus();
         if (settings.keepAwake) WakelockPlus.enable();
+        // keep the camera going with the screen off or another app in front
+        unawaited(startStreamService(pcName));
       case 'denied':
         final reason = msg['reason'];
         _closing = true;
@@ -421,6 +467,8 @@ class CarrotLink extends ChangeNotifier {
       if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         state = LinkState.streaming;
         if (settings.keepAwake) WakelockPlus.enable();
+        // keep the camera going with the screen off or another app in front
+        unawaited(startStreamService(pcName));
         notifyListeners();
       } else if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         state = LinkState.connected;
@@ -467,6 +515,7 @@ class CarrotLink extends ChangeNotifier {
           _lastBytes = bytes;
           _lastTs = ts;
           stats.fps = (r.values['framesPerSecond'] as num?)?.round() ?? stats.fps;
+          if (stats.fps > 0) lastFrameSentAt = DateTime.now();
           stats.width = (r.values['frameWidth'] as num?)?.toInt() ?? stats.width;
           stats.height = (r.values['frameHeight'] as num?)?.toInt() ?? stats.height;
           stats.limitation = (r.values['qualityLimitationReason'] ?? 'none').toString();
@@ -534,6 +583,7 @@ class CarrotLink extends ChangeNotifier {
     _ws = null;
     state = LinkState.idle;
     WakelockPlus.disable();
+    unawaited(stopStreamService());
     notifyListeners();
   }
 

@@ -167,8 +167,10 @@ export function HowToConnect(): React.JSX.Element {
           <li>
             <span className="num">3</span>
             <div>
-              <b>Pick this PC in the phone app</b>
-              <span className="hint">USB is used whenever it is plugged in: steady, low delay, and the phone charges.</span>
+              <b>Open CarrotCam on the phone</b>
+              <span className="hint">
+                It connects by itself (the first time, type the code from this window). Works even when Windows Firewall blocks Wi-Fi, and the phone charges.
+              </span>
             </div>
           </li>
         </ol>

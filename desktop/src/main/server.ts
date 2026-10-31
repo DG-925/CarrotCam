@@ -15,7 +15,10 @@ import {
   DISCOVERY_PORT,
   DISCOVERY_PROBE,
   MDNS_TYPE,
+  PHONE_WS_PORT,
   PROTOCOL_VERSION,
+  USB_HELLO,
+  USB_HELLO_PORT,
   type PcToPhone,
   type PhoneToPc
 } from '@shared/protocol'
@@ -50,9 +53,28 @@ export function lanAddresses(): string[] {
   return result.sort((a, b) => b.score - a.score).map((r) => r.address)
 }
 
+/** Directed broadcast address of every IPv4 network this PC is on (USB tethering included). */
+export function broadcastAddresses(): string[] {
+  const out = new Set<string>()
+  for (const list of Object.values(networkInterfaces())) {
+    for (const ni of list ?? []) {
+      if (ni.family !== 'IPv4' || ni.internal || ni.address.startsWith('169.254.')) continue
+      const a = ni.address.split('.').map(Number)
+      const m = ni.netmask.split('.').map(Number)
+      if (a.length !== 4 || m.length !== 4) continue
+      out.add(a.map((v, i) => (v & m[i]) | (~m[i] & 255)).join('.'))
+    }
+  }
+  return [...out]
+}
+
 export class PhoneServer extends EventEmitter {
   private wss: WebSocketServer | null = null
   private udp: Socket | null = null
+  private usbSocket: Socket | null = null
+  private usbTimer: NodeJS.Timeout | null = null
+  /** phone addresses we are dialing right now (USB) */
+  private dialing = new Set<string>()
   private bonjour: Bonjour | null = null
   private mdns: Service | null = null
   private sessions = new Map<string, Session>()
@@ -108,6 +130,7 @@ export class PhoneServer extends EventEmitter {
     }
     if (!this.wss) throw new Error('Could not open a port for phone connections')
     this.startDiscovery()
+    this.startUsbDialer()
     this.heartbeat = setInterval(() => this.tick(), 5000)
     log.info(`[server] listening on ${this.port}`)
     this.emit('info')
@@ -167,6 +190,66 @@ export class PhoneServer extends EventEmitter {
     } catch (err) {
       log.warn('[udp] discovery unavailable', err)
     }
+  }
+
+  // ---- USB: the PC dials the phone ----------------------------------------------------
+  private startUsbDialer(): void {
+    try {
+      const sock = createSocket({ type: 'udp4', reuseAddr: true })
+      sock.on('error', (err) => log.warn('[usb] socket error', err.message))
+      sock.on('message', (msg, rinfo) => {
+        let reply: { app?: string; id?: string; port?: number }
+        try {
+          reply = JSON.parse(msg.toString('utf8'))
+        } catch {
+          return
+        }
+        if (reply.app !== 'carrotcam-phone' || typeof reply.id !== 'string') return
+        // already connected (by cable or Wi-Fi): nothing to do
+        if (this.sessions.has(reply.id) || this.dialing.has(rinfo.address)) return
+        this.dial(rinfo.address, Number(reply.port) || PHONE_WS_PORT)
+      })
+      sock.bind(0, () => {
+        try {
+          sock.setBroadcast(true)
+        } catch {
+          /* ignore */
+        }
+      })
+      this.usbSocket = sock
+      const hello = (): void => {
+        const payload = Buffer.from(`${USB_HELLO} ${JSON.stringify({ id: this.trust.pcId, name: this.pcName, port: this.port })}`)
+        for (const b of broadcastAddresses()) {
+          sock.send(payload, USB_HELLO_PORT, b, () => {})
+        }
+      }
+      setTimeout(hello, 500)
+      this.usbTimer = setInterval(hello, 2500)
+    } catch (err) {
+      log.warn('[usb] dialer unavailable', err)
+    }
+  }
+
+  /** Opens a WebSocket to a phone; the phone then says hello like any phone that connects in. */
+  private dial(address: string, port: number): void {
+    this.dialing.add(address)
+    log.info('[usb] dialing phone', address)
+    const ws = new WebSocket(`ws://${address}:${port}`, { handshakeTimeout: 4000, maxPayload: 4 * 1024 * 1024 })
+    const done = (): void => {
+      this.dialing.delete(address)
+    }
+    ws.once('open', () => {
+      done()
+      this.onConnection(ws, address, 'usb')
+    })
+    ws.once('error', (err) => {
+      log.warn('[usb] dial failed', address, err.message)
+      done()
+    })
+    ws.once('unexpected-response', () => {
+      done()
+      ws.terminate()
+    })
   }
 
   info(): ServerInfo {
@@ -247,7 +330,7 @@ export class PhoneServer extends EventEmitter {
     this.failures.set(address, f)
   }
 
-  private onConnection(ws: WebSocket, address: string): void {
+  private onConnection(ws: WebSocket, address: string, transport?: 'usb'): void {
     const addr = address.replace(/^::ffff:/, '')
     let session: Session | null = null
     const helloTimeout = setTimeout(() => ws.close(4000, 'hello timeout'), 10_000)
@@ -266,7 +349,7 @@ export class PhoneServer extends EventEmitter {
       if (!session) {
         if (msg.t !== 'hello') return
         clearTimeout(helloTimeout)
-        session = this.authenticate(ws, addr, msg)
+        session = this.authenticate(ws, addr, msg, transport)
         return
       }
       if (msg.t === 'pong') {
@@ -287,7 +370,7 @@ export class PhoneServer extends EventEmitter {
     ws.on('error', (err) => log.warn('[server] socket error', err.message))
   }
 
-  private authenticate(ws: WebSocket, address: string, hello: Extract<PhoneToPc, { t: 'hello' }>): Session | null {
+  private authenticate(ws: WebSocket, address: string, hello: Extract<PhoneToPc, { t: 'hello' }>, transport?: 'usb'): Session | null {
     const deny = (reason: 'bad_code' | 'version' | 'busy'): null => {
       ws.send(JSON.stringify({ t: 'denied', reason } satisfies PcToPhone))
       setTimeout(() => ws.close(4003, reason), 200)
@@ -334,7 +417,7 @@ export class PhoneServer extends EventEmitter {
           model: String(hello.info.model ?? '').slice(0, 64),
           platform: String(hello.info.platform ?? '').slice(0, 16),
           app: String(hello.info.app ?? '').slice(0, 16),
-          transport: hello.info.transport === 'usb' ? 'usb' : 'wifi'
+          transport: transport === 'usb' || hello.info.transport === 'usb' ? 'usb' : 'wifi'
         },
         address,
         connectedAt: Date.now()
@@ -358,6 +441,8 @@ export class PhoneServer extends EventEmitter {
 
   async stop(): Promise<void> {
     if (this.heartbeat) clearInterval(this.heartbeat)
+    if (this.usbTimer) clearInterval(this.usbTimer)
+    this.usbSocket?.close()
     for (const s of this.sessions.values()) s.ws.close(1001, 'pc shutting down')
     this.sessions.clear()
     try {

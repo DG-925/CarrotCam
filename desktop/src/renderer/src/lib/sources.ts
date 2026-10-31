@@ -328,8 +328,11 @@ function doSync(): void {
       cutout: s.kind === 'camera' && !!s.settings.cutout,
       shadow: s.settings.shadow !== false
     }))
-  engine.setScene(isPlainCamera(scene) ? null : layers)
+  const switched = lastSceneId !== null && lastSceneId !== scene.id
+  lastSceneId = scene.id
+  engine.setScene(isPlainCamera(scene) ? null : layers, switched)
 }
+let lastSceneId: string | null = null
 
 /** Starts following the scenes store (called once the engine exists). */
 export function initSources(): void {
